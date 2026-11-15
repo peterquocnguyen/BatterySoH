@@ -162,9 +162,9 @@ final class BatteryModel {
         guard !isStatic, !isChangingEnergyMode, let source = currentPowerSource, mode != energyMode else { return }
         isChangingEnergyMode = true
         defer { isChangingEnergyMode = false }
-        let result = await Task.detached(priority: .userInitiated) { () -> Result<Void, Error> in
-            Result { try EnergyModeControl.set(mode, for: source) }
-        }.value
+        // NSAppleScript is not thread-safe: run it on the main actor. The password dialog is
+        // drawn by SecurityAgent, so blocking here only pauses our own UI while it is up.
+        let result: Result<Void, Error> = Result { try EnergyModeControl.set(mode, for: source) }
         switch result {
         case .success:
             clearControlError()
