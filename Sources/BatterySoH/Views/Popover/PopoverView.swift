@@ -82,7 +82,7 @@ struct PopoverView: View {
         VStack(alignment: .leading, spacing: 0) {
             if let snapshot = model.snapshot {
                 content(PopoverDisplay(snapshot: snapshot, temperatureUnit: temperatureUnit,
-                                       chargeLimit: model.chargeLimit))
+                                       chargeLimit: model.chargeLimit, condition: model.macCondition))
             } else {
                 PopoverNoBattery()
                     .padding(.bottom, 16)
@@ -174,7 +174,8 @@ enum PopoverRenderEntries {
             energy = EnergyModeStatus(modes: [.battery: .automatic, .ac: .automatic], capabilities: fullCaps)
             limit = limitIdle
         }
-        return BatteryModel(previewSnapshot: snapshot, history: [], energyStatus: energy, chargeLimit: limit)
+        return BatteryModel(previewSnapshot: snapshot, history: [], energyStatus: energy, chargeLimit: limit,
+                            macReportedHealth: .sampleGood)
     }
 
     @MainActor
@@ -204,6 +205,13 @@ enum PopoverRenderEntries {
                                                    capabilities: [.battery: [.automatic, .lowPower]]),
                     chargeLimit: nil,
                     controlError: "Couldn't change Energy Mode: pmset failed (error 1)."))
+                .environment(\.popoverStaticFrame, true)
+                .popoverRenderBackground()
+        })
+        entries.append(RenderEntry("popover-service-recommended") {
+            PopoverView()
+                .environment(BatteryModel(previewSnapshot: .sampleWorn, history: [],
+                                          macReportedHealth: .sampleService))
                 .environment(\.popoverStaticFrame, true)
                 .popoverRenderBackground()
         })

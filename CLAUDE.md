@@ -31,7 +31,9 @@ Native macOS menu bar battery monitor. Spec: `docs/SPEC.md` (features F1–F10).
   `MobileDevices.swift`, private Sharing (Instant Hotspot) code only in `NearbyDevices.swift`
   (its levels are `isApproximate`); `LastExactReadingStore` (Devices.swift) keeps each
   iPhone / iPad's last exact reading for when it disconnects; `HotspotParser.merge` orders
-  connected > remembered > hotspot.
+  connected > remembered > hotspot. `BatteryCondition` (F11): Normal / Service Recommended,
+  maximum capacity, iPhone peak performance, rated cycles; `MacReportedHealth` runs
+  `system_profiler` for macOS's own verdict.
 - `Sources/BatterySoH` — SwiftUI app. `BatteryModel` (@Observable, owns refresh policy),
   `Views/Popover/*` (F1–F3), `Views/Window/*`, `RenderHarness`. The window is device first:
   `MainWindowView` (NavigationSplitView, selection in `window.selectedDevice`, `WindowSelection`

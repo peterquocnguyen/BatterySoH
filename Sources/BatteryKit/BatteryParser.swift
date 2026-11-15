@@ -48,7 +48,8 @@ public enum BatteryParser {
             systemPowerInW: milliToUnit(int(telemetry["SystemPowerIn"])),
             serial: string(dict["Serial"]) ?? string(dict["BatterySerialNumber"]),
             gaugeName: string(dict["DeviceName"]),
-            manufactureDate: manufactureDate(dict["ManufactureDate"])
+            manufactureDate: manufactureDate(dict["ManufactureDate"]),
+            permanentFailureStatus: int(dict["PermanentFailureStatus"])
         )
     }
 

@@ -97,6 +97,8 @@ public struct BatterySnapshot: Codable, Equatable, Sendable {
     public var fullyCharged: Bool
     /// Non-zero when macOS is holding the charge (optimized charging, charge limit…).
     public var notChargingReason: Int?
+    /// `PermanentFailureStatus`: non-zero when the gauge reports a permanent battery failure.
+    public var permanentFailureStatus: Int?
 
     /// Minutes, nil when unknown / calculating.
     public var minutesToEmpty: Int?
@@ -122,7 +124,8 @@ public struct BatterySnapshot: Codable, Equatable, Sendable {
                 isCharging: Bool = false, externalConnected: Bool = false, fullyCharged: Bool = false,
                 notChargingReason: Int? = nil, minutesToEmpty: Int? = nil, minutesToFull: Int? = nil,
                 adapter: PowerAdapter? = nil, systemLoadW: Double? = nil, systemPowerInW: Double? = nil,
-                serial: String? = nil, gaugeName: String? = nil, manufactureDate: Date? = nil) {
+                serial: String? = nil, gaugeName: String? = nil, manufactureDate: Date? = nil,
+                permanentFailureStatus: Int? = nil) {
         self.timestamp = timestamp
         self.chargePercent = chargePercent
         self.rawChargePercent = rawChargePercent
@@ -147,6 +150,7 @@ public struct BatterySnapshot: Codable, Equatable, Sendable {
         self.serial = serial
         self.gaugeName = gaugeName
         self.manufactureDate = manufactureDate
+        self.permanentFailureStatus = permanentFailureStatus
     }
 }
 

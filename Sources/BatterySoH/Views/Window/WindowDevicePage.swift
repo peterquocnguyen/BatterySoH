@@ -32,6 +32,10 @@ struct WindowDevicePage: View {
         VStack(alignment: .leading, spacing: 16) {
             WindowDeviceHeader(device: device, fade: fade)
             WindowDeviceChargeCard(device: device, now: now, fade: fade)
+            if let condition = BatteryCondition.device(device) {
+                WindowConditionCard(condition: condition, deviceName: device.kind == .iPad ? "iPad" : "iPhone")
+                    .opacity(fade)
+            }
             if device.hasHealth {
                 WindowCard {
                     WindowRowList(rows: device.healthRows(unit: temperatureUnit))
@@ -308,9 +312,16 @@ extension DeviceBattery {
             WindowRow(label: "Battery Health", value: Fmt.percent(healthPercent, decimals: 1)),
             WindowRow(label: "Full Charge Capacity", value: Fmt.mAh(fullChargeCapacityMAh)),
             WindowRow(label: "Design Capacity", value: Fmt.mAh(designCapacityMAh)),
-            WindowRow(label: "Charge Cycles", value: cycleCount.map(String.init) ?? Fmt.dash),
+            WindowRow(label: "Charge Cycles", value: cyclesText),
             WindowRow(label: "Battery Temperature", value: Fmt.temperature(temperatureC, unit: unit)),
         ]
+    }
+
+    /// "773 of 500" (Apple's rated cycles for the model), "773", "—".
+    var cyclesText: String {
+        guard let cycleCount else { return Fmt.dash }
+        guard let rated = BatteryCondition.ratedCycles(kind: kind, model: model) else { return "\(cycleCount)" }
+        return "\(cycleCount) of \(rated)"
     }
 
     var symbol: String {
