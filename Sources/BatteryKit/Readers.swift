@@ -130,3 +130,27 @@ public final class BatteryReader {
         return snap
     }
 }
+
+/// Accessory batteries macOS already tracks (AirPods, Magic Mouse / Keyboard / Trackpad,
+/// game controllers, third-party Bluetooth HID) — what `pmset -g accps` prints.
+public enum AccessoryPowerSources {
+    /// `IOPSCopyPowerSourcesByType` is exported by IOKit but declared only in a private header;
+    /// type 4 = accessory sources. Looked up at runtime so a missing symbol just means "none".
+    private typealias CopyByType = @convention(c) (Int32) -> Unmanaged<CFTypeRef>?
+    private static let copyByType: CopyByType? = {
+        guard let handle = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_LAZY),
+              let sym = dlsym(handle, "IOPSCopyPowerSourcesByType") else { return nil }
+        return unsafeBitCast(sym, to: CopyByType.self)
+    }()
+    private static let accessoryType: Int32 = 4
+
+    public static func readDescriptions() -> [[String: Any]] {
+        guard let copyByType, let blob = copyByType(accessoryType)?.takeRetainedValue(),
+              let list = IOPSCopyPowerSourcesList(blob)?.takeRetainedValue() as? [CFTypeRef] else { return [] }
+        return list.compactMap { IOPSGetPowerSourceDescription(blob, $0)?.takeUnretainedValue() as? [String: Any] }
+    }
+
+    public static func read() -> [DeviceBattery] {
+        AccessoryParser.parse(readDescriptions())
+    }
+}

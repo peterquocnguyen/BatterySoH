@@ -14,9 +14,15 @@ doing right now, and how the battery ages over time. SwiftUI, no dependencies, r
   charge (optimized charging / charge limit).
 - **This Mac window**: model, capacities in mAh, cycles, temperature, adapter, Low Power
   Mode, and battery gauge details.
+- **Devices**: batteries of an iPhone or iPad connected by cable or Wi-Fi sync (charge, and
+  for trusted devices health, cycles and temperature), or nearby on the same Apple Account
+  through Personal Hotspot (charge only), plus AirPods (left / right / case),
+  Magic Mouse, Keyboard, Trackpad and other Bluetooth accessories. Apple Watch isn't
+  available: watchOS shares its battery only with the paired iPhone.
 - **History**: one sample per day, a monthly table (average health, max cycles), a health
   chart, and CSV export.
-- **`bbstat` CLI**: the same data in the terminal, as text or JSON.
+- **`bbstat` CLI**: the same data in the terminal, as text or JSON (`--devices` for other
+  devices).
 
 ## Screenshots
 

@@ -14,6 +14,14 @@ final class BatteryModel {
     private(set) var snapshot: BatterySnapshot?
     let mac = MacInfo.current()
     private(set) var history: [HistorySample] = []
+    /// Other devices: iPhone / iPad (cabled reads first, then nearby-only ones), then
+    /// Bluetooth / USB accessories.
+    var devices: [DeviceBattery] {
+        HotspotParser.merge(cabled: mobileDevices, nearby: nearbyDevices) + accessories
+    }
+    private(set) var accessories: [DeviceBattery] = []
+    private(set) var mobileDevices: [DeviceBattery] = []
+    private(set) var nearbyDevices: [DeviceBattery] = []
 
     private let reader = BatteryReader()
     private let store = HistoryStore()
@@ -21,14 +29,21 @@ final class BatteryModel {
     @ObservationIgnored private var fastTimer: Timer?
     @ObservationIgnored private var slowTimer: Timer?
     @ObservationIgnored private var visibleSurfaces = 0
+    /// Started on first visible surface so MobileDevice.framework only loads when needed.
+    @ObservationIgnored private var mobileMonitor: MobileDeviceMonitor?
+    @ObservationIgnored private var mobileRefreshed = Date.distantPast
+    /// Instant Hotspot browser: runs only while a surface is visible.
+    @ObservationIgnored private var hotspotBrowser: NearbyHotspotBrowser?
 
     @ObservationIgnored private let isStatic: Bool
 
     /// Static model for previews and `--render`: no timers, no disk writes.
-    init(previewSnapshot: BatterySnapshot?, history: [HistorySample]) {
+    init(previewSnapshot: BatterySnapshot?, history: [HistorySample], devices: [DeviceBattery] = []) {
+        // Previews put every sample device in `accessories`; `devices` returns them as given.
         isStatic = true
         snapshot = previewSnapshot
         self.history = history
+        accessories = devices
     }
 
     init() {
@@ -44,21 +59,58 @@ final class BatteryModel {
     }
 
     func refresh() {
-        guard !isStatic, let s = reader.snapshot() else { return }
+        guard !isStatic else { return }
+        if visibleSurfaces > 0 { refreshDevices() }
+        guard let s = reader.snapshot() else { return }
         if s != snapshot { snapshot = s }
         recordHistory(s)
+    }
+
+    /// Accessories are a cheap IOPS read; iPhone / iPad reads open a lockdown session, so they
+    /// run at most once a minute (plus on every attach).
+    private func refreshDevices() {
+        let a = AccessoryPowerSources.read()
+        if a != accessories { accessories = a }
+        if mobileMonitor == nil {
+            mobileMonitor = MobileDeviceMonitor { [weak self] list in
+                MainActor.assumeIsolated {
+                    guard let self, list != self.mobileDevices else { return }
+                    self.mobileDevices = list
+                }
+            }
+            mobileMonitor?.start()
+            mobileRefreshed = Date()
+        } else if Date().timeIntervalSince(mobileRefreshed) >= 60 {
+            mobileRefreshed = Date()
+            mobileMonitor?.refresh()
+        }
     }
 
     /// Call from `.onAppear` / `.onDisappear` of popover and window.
     func surfaceAppeared() {
         visibleSurfaces += 1
+        if visibleSurfaces == 1 { startNearbyBrowsing() }
         refresh()
         restartFastTimer()
     }
 
     func surfaceDisappeared() {
         visibleSurfaces = max(0, visibleSurfaces - 1)
+        if visibleSurfaces == 0 { hotspotBrowser?.stop() }
         restartFastTimer()
+    }
+
+    private func startNearbyBrowsing() {
+        guard !isStatic else { return }
+        if hotspotBrowser == nil {
+            hotspotBrowser = NearbyHotspotBrowser { [weak self] list in
+                MainActor.assumeIsolated {
+                    guard let self, list != self.nearbyDevices else { return }
+                    self.nearbyDevices = list
+                }
+            }
+        }
+        hotspotBrowser?.start()
     }
 
     func restartFastTimer() {

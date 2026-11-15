@@ -1,7 +1,8 @@
 # Battery Buddy — Product Spec
 
 A lightweight, native macOS menu bar app that shows what the battery and the charger in
-**this Mac** are doing right now, and how the battery ages over time.
+**this Mac** are doing right now, how the battery ages over time, and the batteries of the
+devices around it (iPhone, iPad, AirPods and other accessories).
 
 Target: macOS 14+, Apple Silicon first (Intel best-effort). Swift + SwiftUI, Swift Package
 Manager, no third-party dependencies, no helper tools, no root.
@@ -15,7 +16,8 @@ Manager, no third-party dependencies, no helper tools, no root.
 
 ## Non-goals (v1)
 
-- iPhone/iPad batteries (needs private MobileDevice framework) — tracked as a later idea.
+- Apple Watch battery: watchOS shares it only with the paired iPhone; a Mac has no path to it.
+- History for other devices (F10 shows live values only).
 - Writing SMC keys or implementing our own charge limiter. The only controls are the
   ones macOS itself offers in its Battery menu (F8), driven through macOS's own interfaces.
 - Cloud sync, accounts, analytics.
@@ -31,6 +33,10 @@ Manager, no third-party dependencies, no helper tools, no root.
 | Time to empty / full | `IOPSCopyPowerSourcesInfo` (`kIOPSTimeToEmptyKey`, `kIOPSTimeToFullChargeKey`); fallback `AvgTimeToEmpty/Full` (65535 = unknown) |
 | Live change notifications | `IOPSNotificationCreateRunLoopSource` + timer while UI visible |
 | Battery temperature | `AppleSmartBattery.Temperature` (centi-°C) if present, else SMC keys `TB0T`/`TB1T`/`TB2T` via `AppleSMC` user client. **Never display 0 °C for "unknown" — show "—".** |
+| Accessory batteries (AirPods parts, Magic Mouse/Keyboard/Trackpad, controllers, BT HID) | `IOPSCopyPowerSourcesByType(4)` (IOKit export, private header; `dlsym`) — same list as `pmset -g accps` |
+| iPhone / iPad charge, charging | Private `MobileDevice.framework` (`dlopen`): `AMDeviceNotificationSubscribe…`, lockdown domain `com.apple.mobile.battery` |
+| iPhone / iPad charge without a cable | Private `Sharing.framework` (`dlopen`): `SFRemoteHotspotSession` browse, delegate `session:updatedFoundDevices:` → `SFRemoteHotspotDevice` `deviceName` (advert-truncated to ~12 UTF-8 bytes), `model`, `batteryLife`. Same Apple Account, Personal Hotspot capable. No charging state, no health |
+| iPhone / iPad capacity, cycles, temperature | `com.apple.mobile.diagnostics_relay` `IORegistry` request for `IOPMPowerSource` (trusted devices only) |
 | Mac model name / identifier | IODeviceTree `product` `product-name`; `sysctl hw.model` |
 | Low Power Mode | `ProcessInfo.isLowPowerModeEnabled` |
 
@@ -120,8 +126,34 @@ Tab in the main window: app icon, name, version (build), author **Peter Ng**, co
 one-line description, privacy statement (no network, no data collection), credits for
 data sources, "Copy Diagnostics" (bbstat-style text for bug reports).
 
+### F10 — Window: Devices
+Tab between "This Mac" and "History": batteries of other devices this Mac can see.
+- **iPhone & iPad** section: devices on USB, or on Wi-Fi with "Show this iPhone when on
+  Wi-Fi" on. Card: device glyph, name, `iOS 26.1 · USB · iPhone18,1`, big percent (bolt when
+  charging), charge bar. Trusted devices add rows: Battery Health (full/design), Full Charge
+  Capacity, Design Capacity, Charge Cycles, Temperature. Untrusted: name/model only plus
+  "Unlock iPhone and tap Trust to see its battery." Never initiates pairing itself.
+- **Nearby** (no cable): iPhone / cellular iPad on the same Apple Account, through Instant
+  Hotspot — name (marked `…` when the advert cut it), model, charge %, note "Charge only.
+  Connect by cable for health and cycles." Dropped when the same device is also read by
+  cable (same model, cabled name starts with the advertised name). Browses only while a
+  surface is visible.
+- **Accessories** section: one card per accessory; AirPods-style groups show Left / Right /
+  Case bars, headline percent = lowest bud.
+- Empty state when nothing is found; footnote explains the Wi-Fi/trust requirement and that
+  Apple Watch battery is not available on a Mac.
+- Refresh: accessories on every UI tick (cheap IOPS read); iPhone/iPad on attach and at most
+  once a minute while a surface is visible. MobileDevice loads on first visible surface.
+- Private-API use is isolated: MobileDevice in `MobileDevices.swift`, Sharing in
+  `NearbyDevices.swift`; every symbol optional.
+
+**Accept:** a connected Bluetooth mouse shows the same percent as `pmset -g accps`; an
+iPhone on the same Apple Account shows the percent the Wi-Fi menu shows for its hotspot.
+
 ### F7 — `bbstat` CLI (dev + power-user tool)
 `swift run bbstat` prints the current snapshot as human text; `--json` prints JSON.
+`--devices` lists other devices (F10), `--devices --json` as JSON, `--devices --raw` dumps
+the accessory power source dictionaries (fixture capture).
 Used for debugging and as a fixture capture tool (`--raw` dumps the registry plist).
 
 ## Architecture

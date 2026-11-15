@@ -75,3 +75,34 @@ public extension HistorySample {
         }
     }
 }
+
+/// Canned other-device batteries for previews and render checks.
+public extension DeviceBattery {
+    static let sampleIPhone = DeviceBattery(
+        id: "sample-iphone", name: "Work iPhone", kind: .iPhone, connection: .usb,
+        model: "iPhone18,1", osVersion: "iOS 26.1", percent: 64, isCharging: true, externalConnected: true,
+        fullChargeCapacityMAh: 3712, designCapacityMAh: 4005, cycleCount: 212, temperatureC: 30.2)
+
+    static let sampleIPadUntrusted = DeviceBattery(
+        id: "sample-ipad", name: "iPad", kind: .iPad, connection: .wifi, model: "iPad16,3",
+        percent: nil, note: "Unlock iPad and tap Trust to see its battery.")
+
+    static let sampleAirPods = DeviceBattery(
+        id: "sample-airpods", name: "AirPods Pro", kind: .airPods, connection: .bluetooth, percent: 41,
+        parts: [Part(name: "Left", percent: 41), Part(name: "Right", percent: 47),
+                Part(name: "Case", percent: 88, isCharging: true)])
+
+    static let sampleMouse = DeviceBattery(
+        id: "sample-mouse", name: "Magic Mouse", kind: .mouse, connection: .bluetooth, percent: 12)
+
+    static let sampleKeyboard = DeviceBattery(
+        id: "sample-keyboard", name: "Magic Keyboard", kind: .keyboard, connection: .usb, percent: 96,
+        isCharging: true, externalConnected: true)
+
+    static let sampleNearbyIPhone = DeviceBattery(
+        id: "sample-nearby", name: "Family iPhon…", kind: .iPhone, connection: .nearby,
+        model: "iPhone14,8", percent: 75, note: "Charge only. Connect by cable for health and cycles.")
+
+    static let samples: [DeviceBattery] = [sampleIPhone, sampleIPadUntrusted, sampleNearbyIPhone,
+                                           sampleAirPods, sampleMouse, sampleKeyboard]
+}

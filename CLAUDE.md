@@ -8,7 +8,7 @@ Native macOS menu bar battery monitor. Spec: `docs/SPEC.md` (features F1–F7). 
   in the macOS 27 SDK and CLT has no SwiftUIMacros plugin). BatteryKit, bbstat and the tests
   build with Command Line Tools alone via `scripts/test.sh`.
 - `swift build` — builds everything. `swift run bbstat` — prints live battery data
-  (`--json`, `--raw` registry dump, `--smc` temperature probe).
+  (`--json`, `--raw` registry dump, `--smc` temperature probe, `--devices` other devices).
 - `swift test` — Swift Testing (`import Testing`), not XCTest. `scripts/test.sh` does the
   same and also works when only Command Line Tools are selected.
 - `.build/debug/BatteryBuddy --render <dir>` — headless render of every `RenderEntry`
@@ -26,8 +26,11 @@ Native macOS menu bar battery monitor. Spec: `docs/SPEC.md` (features F1–F7). 
 - `Sources/BatteryKit` — pure library. Models (`BatterySnapshot`, `PowerAdapter`), pure
   `BatteryParser`, IOKit readers (`SmartBatteryRegistry`, `PowerSources`, `MacInfo`),
   `SMC` (temperature), `HistoryStore`/`HistoryAggregator`, `Fmt` formatting, `Samples`.
+  Other devices (F10): `DeviceBattery` + pure `AccessoryParser`/`MobileBatteryParser` in
+  `Devices.swift`, `AccessoryPowerSources` in `Readers.swift`, private MobileDevice code only in
+  `MobileDevices.swift`, private Sharing (Instant Hotspot) code only in `NearbyDevices.swift`.
 - `Sources/BatteryBuddy` — SwiftUI app. `BatteryModel` (@Observable, owns refresh policy),
-  `Views/Popover/*` (F1–F3), `Views/Window/*` (F4–F6), `RenderHarness`.
+  `Views/Popover/*` (F1–F3), `Views/Window/*` (F4–F6, F10), `RenderHarness`.
 - `Sources/bbstat` — CLI.
 - `Tests/BatteryKitTests` — fixtures are real `AppleSmartBattery` dumps with serial scrubbed.
 

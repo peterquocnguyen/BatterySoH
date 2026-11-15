@@ -4,7 +4,7 @@ import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// F4/F5 — the main window: a tab switcher over "This Mac" and "History".
+/// F4/F5/F10 — the main window: a tab switcher over "This Mac", "Devices" and "History".
 /// Tab contents are custom-drawn views; only this outer layer adds the ScrollView.
 struct MainWindowView: View {
     @Environment(BatteryModel.self) private var model
@@ -53,6 +53,8 @@ struct MainWindowView: View {
                 WindowThisMacContent(mac: model.mac, snapshot: model.snapshot,
                                      temperatureUnit: temperatureUnit, lowPowerMode: lowPowerMode,
                                      detailsExpanded: $detailsExpanded)
+            case .devices:
+                WindowDevicesContent(devices: model.devices, temperatureUnit: temperatureUnit)
             case .history:
                 HistoryContent(history: model.history, deviceTitle: "This Mac (\(model.mac.name))",
                                onExport: model.history.isEmpty ? nil : exportCSV,
@@ -97,13 +99,14 @@ private enum WindowStorageKey {
 }
 
 enum WindowTab: String, CaseIterable, Identifiable {
-    case thisMac, history
+    case thisMac, devices, history
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .thisMac: return "This Mac"
+        case .devices: return "Devices"
         case .history: return "History"
         }
     }
@@ -111,12 +114,13 @@ enum WindowTab: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .thisMac: return "laptopcomputer"
+        case .devices: return "ipad.and.iphone"
         case .history: return "chart.xyaxis.line"
         }
     }
 }
 
-/// This Mac / History switcher. macOS 26+: a compact glass capsule with segments (like a
+/// This Mac / Devices / History switcher. macOS 26+: a compact glass capsule with segments (like a
 /// Tahoe segmented control). macOS 14–25: the toolbar-style icon-over-label tabs.
 /// Custom-drawn either way so `--render` can capture it.
 struct WindowTabBar: View {
@@ -278,6 +282,16 @@ enum WindowRenderEntries {
                                                       identifier: "Mac16,10"),
                                          snapshot: nil, temperatureUnit: .celsius,
                                          lowPowerMode: false, detailsExpanded: .constant(false))
+                }
+            },
+            RenderEntry("window-devices") {
+                frame(.devices) {
+                    WindowDevicesContent(devices: DeviceBattery.samples, temperatureUnit: .celsius)
+                }
+            },
+            RenderEntry("window-devices-empty") {
+                frame(.devices) {
+                    WindowDevicesContent(devices: [], temperatureUnit: .celsius)
                 }
             },
             RenderEntry("window-history") {
