@@ -289,7 +289,7 @@ extension BatterySnapshot {
     private var windowAdapter: String {
         guard externalConnected else { return "Not connected" }
         guard let adapter else { return "Connected" }
-        // "USB-C Power Delivery" truncates in the 420 pt window next to the label; use "USB-C PD".
+        // "USB-C Power Delivery" truncates in the window next to the label; use "USB-C PD".
         let kind = adapter.profiles.isEmpty ? adapter.displayKind : "USB-C PD"
         guard let watts = adapter.watts, watts > 0 else { return kind }
         return "\(watts) W · \(kind)"

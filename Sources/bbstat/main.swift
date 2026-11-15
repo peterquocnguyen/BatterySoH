@@ -11,7 +11,7 @@ import Foundation
 let args = Set(CommandLine.arguments.dropFirst())
 
 if args.contains("--help") || args.contains("-h") {
-    print("usage: bbstat [--json | --raw | --smc | --devices [--json | --raw]]")
+    print("usage: bbstat [--json | --raw | --smc | --devices [--json | --raw] [--wait seconds]]")
     exit(0)
 }
 
@@ -37,7 +37,10 @@ if args.contains("--devices") {
     let hotspot = NearbyHotspotBrowser { nearby = $0 }
     monitor?.start()
     hotspot?.start()
-    RunLoop.main.run(until: Date().addingTimeInterval(monitor == nil && hotspot == nil ? 0 : 4))
+    // `--wait N` (seconds): Wi-Fi-synced devices can take longer than cabled ones to attach.
+    let argv = CommandLine.arguments
+    let wait = argv.firstIndex(of: "--wait").flatMap { i in i + 1 < argv.count ? Double(argv[i + 1]) : nil } ?? 4
+    RunLoop.main.run(until: Date().addingTimeInterval(monitor == nil && hotspot == nil ? 0 : wait))
     hotspot?.stop()
     let devices = HotspotParser.merge(cabled: mobile, nearby: nearby) + AccessoryPowerSources.read()
     if args.contains("--json") {

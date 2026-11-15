@@ -118,7 +118,9 @@ struct MainWindowView: View {
 }
 
 enum WindowLayout {
-    static let width: CGFloat = 420
+    /// The toolbar's principal item is centred on the window and macOS hides it entirely when
+    /// it would collide with the traffic lights: five segments (~350 pt) need ≥ ~520 pt.
+    static let width: CGFloat = 540
     static let height: CGFloat = 640
 }
 
@@ -133,10 +135,9 @@ enum WindowTab: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// Short enough that all five fit the 420 pt toolbar ("This Mac" pushed it to ~350 pt).
     var title: String {
         switch self {
-        case .thisMac: return "Mac"
+        case .thisMac: return "This Mac"
         case .devices: return "Devices"
         case .insights: return "Insights"
         case .history: return "History"
@@ -214,7 +215,7 @@ private struct WindowSegmentButton: View {
     var body: some View {
         Button(action: action) {
             // Text only, like the native toolbar segmented control it stands in for: five
-            // icon + label segments don't fit 420 pt.
+            // icon + label segments don't fit the toolbar.
             Text(tab.title)
                 .font(.system(size: 12.5, weight: isSelected ? .semibold : .medium))
                 .foregroundStyle(isSelected ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
