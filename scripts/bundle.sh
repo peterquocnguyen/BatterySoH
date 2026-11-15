@@ -3,6 +3,7 @@
 #
 #   scripts/bundle.sh          # build/BatterySoH.app
 #   scripts/bundle.sh --zip    # also build/BatterySoH-<version>.zip
+#   scripts/bundle.sh --dmg    # also build/BatterySoH-<version>.dmg (drag-to-Applications)
 #
 # Safe to re-run: the .app is rebuilt from scratch each time.
 # Needs Xcode (not just Command Line Tools): the app uses SwiftUI macros (@State) whose
@@ -13,10 +14,12 @@ cd "$(dirname "$0")/.."
 root="$(pwd)"
 
 make_zip=false
+make_dmg=false
 for arg in "$@"; do
     case "$arg" in
         --zip) make_zip=true ;;
-        -h|--help) sed -n '2,9p' "$0"; exit 0 ;;
+        --dmg) make_dmg=true ;;
+        -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
         *) echo "unknown argument: $arg" >&2; exit 2 ;;
     esac
 done
@@ -80,6 +83,21 @@ if $make_zip; then
     # --norsrc/--noextattr: keep local xattrs (com.apple.provenance…) out as ._ files.
     ditto -c -k --keepParent --norsrc --noextattr "$app" "$zip"
     echo "$zip"
+fi
+
+if $make_dmg; then
+    dmg="$root/build/BatterySoH-$version.dmg"
+    staging="$(mktemp -d "${TMPDIR:-/tmp}/batterysoh-dmg.XXXXXX")"
+    trap 'rm -rf "$staging"' EXIT
+    # The window shows the app next to an Applications shortcut: drag one onto the other.
+    ditto --norsrc --noextattr "$app" "$staging/BatterySoH.app"
+    ln -s /Applications "$staging/Applications"
+    rm -f "$dmg"
+    echo "==> hdiutil create $dmg"
+    hdiutil create -quiet -volname "BatterySoH $version" -srcfolder "$staging" \
+        -fs HFS+ -format UDZO -imagekey zlib-level=9 -ov "$dmg"
+    hdiutil verify -quiet "$dmg"
+    echo "$dmg"
 fi
 
 echo "$app"

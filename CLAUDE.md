@@ -14,7 +14,8 @@ Native macOS menu bar battery monitor. Spec: `docs/SPEC.md` (features F1–F10).
 - `.build/debug/BatterySoH --render <dir>` — headless render of every `RenderEntry`
   (popover states, window sidebar, each window page, Settings › About) in light + dark to PNG, then exits. Use it to look at UI
   changes: render, then open the PNGs with the Read tool.
-- `scripts/bundle.sh` — release build wrapped into `build/BatterySoH.app`. It re-stamps
+- `scripts/bundle.sh` — release build wrapped into `build/BatterySoH.app` (`--dmg` also writes
+  `build/BatterySoH-<version>.dmg` with an Applications shortcut; `--zip` a zip). It re-stamps
   the binary's LC_BUILD_VERSION with the real SDK version (SwiftPM records 14.0); without it
   macOS 26+ runs the app in compatibility mode with no Liquid Glass. So glass only shows in the
   bundle, not in a raw `.build/debug/BatterySoH` run.
