@@ -3,6 +3,8 @@
 A small, native macOS menu bar app that shows what the battery and charger in your Mac are
 doing right now, and how the battery ages over time. SwiftUI, no dependencies, read-only.
 
+Version 0.1.1 (build 2) · by Peter Quoc
+
 ## Features
 
 - **Menu bar item**: charge percent plus time left, a charging bolt, or watts.
@@ -21,6 +23,9 @@ doing right now, and how the battery ages over time. SwiftUI, no dependencies, r
   available: watchOS shares its battery only with the paired iPhone.
 - **History**: one sample per day, a monthly table (average health, max cycles), a health
   chart, and CSV export.
+- **About**: version, author, privacy note, data-source credits, and **Copy Diagnostics**,
+  which puts a plain-text report (app and macOS version, Mac model, current battery and
+  charger readings) on the clipboard for bug reports.
 - **`bbstat` CLI**: the same data in the terminal, as text or JSON (`--devices` for other
   devices).
 
@@ -81,7 +86,9 @@ The app icon is generated in code. To redraw it:
 swift scripts/make-icon.swift build/AppIcon.iconset   # writes Resources/AppIcon.icns
 ```
 
-Version and bundle id live in `Resources/Info.plist`.
+Version, build number, copyright and bundle id live in `Resources/Info.plist`. The About tab
+reads them from the bundle; unbundled runs (`swift run`, `--render`) fall back to constants in
+`AboutInfo` (`Sources/BatteryBuddy/Views/Window/AboutView.swift`), so bump both together.
 
 ## Where the data comes from
 
@@ -103,6 +110,13 @@ Battery Buddy only reads. It never writes SMC keys or changes how the Mac charge
 root or helper tool, and makes no network connections. Apart from its settings (in
 `UserDefaults`), the only thing it writes is its daily history at
 `~/Library/Application Support/BatteryBuddy/history.json`.
+
+## About
+
+Battery Buddy is written by Peter Quoc. © 2026 Peter Quoc.
+
+The diagnostics report leaves out the battery serial number. Website, support and license
+links are not set yet.
 
 ## Project layout
 

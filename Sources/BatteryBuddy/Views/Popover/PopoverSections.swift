@@ -17,7 +17,7 @@ struct PopoverHeader: View {
                     Image(systemName: display.statusIcon)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(display.statusColor)
-                    Text(display.snapshot.statusTitle)
+                    Text(display.statusTitle)
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(.primary)
                 }
@@ -48,7 +48,7 @@ struct PopoverHeader: View {
                             .font(.system(size: 26, weight: .semibold))
                             .monospacedDigit()
                     }
-                    Text(display.snapshot.timeSummary)
+                    Text(display.timeSummary)
                         .font(.system(size: 12.5))
                         .foregroundStyle(.secondary)
                 }

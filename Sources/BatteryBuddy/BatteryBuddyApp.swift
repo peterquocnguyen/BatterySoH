@@ -25,6 +25,7 @@ struct BatteryBuddyApp: App {
                 .environment(model)
         }
         .windowResizability(.contentSize)
+        .windowToolbarStyle(.unified(showsTitle: false))
         .defaultPosition(.center)
 
         Settings {

@@ -4,7 +4,7 @@ import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// F4/F5/F10 — the main window: a tab switcher over "This Mac", "Devices" and "History".
+/// F4/F5/F9/F10 — the main window: a tab switcher over "This Mac", "Devices", "History" and "About".
 /// Tab contents are custom-drawn views; only this outer layer adds the ScrollView.
 struct MainWindowView: View {
     @Environment(BatteryModel.self) private var model
@@ -30,12 +30,23 @@ struct MainWindowView: View {
     @ViewBuilder
     private var layout: some View {
         if #available(macOS 26, *) {
-            // Liquid Glass: translucent window, content scrolls under the floating glass switcher
-            // and the transparent title bar.
+            // Native Tahoe layout: the switcher is a segmented control in the window toolbar, so
+            // the system places it in the title bar, gives it Liquid Glass, and fades content that
+            // scrolls under the toolbar (scroll edge effect) instead of overlapping it.
             scrollContent
-                .safeAreaInset(edge: .top, spacing: 0) { WindowTabBar(selection: $tab) }
+                .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        Picker("Section", selection: $tab) {
+                            ForEach(WindowTab.allCases) { tab in
+                                Text(tab.title).tag(tab)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .fixedSize()
+                    }
+                }
                 .containerBackground(.thinMaterial, for: .window)
-                .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
         } else {
             VStack(spacing: 0) {
                 WindowTabBar(selection: $tab)
@@ -59,6 +70,11 @@ struct MainWindowView: View {
                 HistoryContent(history: model.history, deviceTitle: "This Mac (\(model.mac.name))",
                                onExport: model.history.isEmpty ? nil : exportCSV,
                                exportMessage: exportMessage)
+            case .about:
+                AboutContent(info: .current(mac: model.mac)) {
+                    AboutDiagnostics.report(info: .current(mac: model.mac), snapshot: model.snapshot,
+                                            lowPowerMode: lowPowerMode)
+                }
             }
         }
         .scrollBounceBehavior(.basedOnSize)
@@ -99,7 +115,7 @@ private enum WindowStorageKey {
 }
 
 enum WindowTab: String, CaseIterable, Identifiable {
-    case thisMac, devices, history
+    case thisMac, devices, history, about
 
     var id: String { rawValue }
 
@@ -108,6 +124,7 @@ enum WindowTab: String, CaseIterable, Identifiable {
         case .thisMac: return "This Mac"
         case .devices: return "Devices"
         case .history: return "History"
+        case .about: return "About"
         }
     }
 
@@ -116,11 +133,12 @@ enum WindowTab: String, CaseIterable, Identifiable {
         case .thisMac: return "laptopcomputer"
         case .devices: return "ipad.and.iphone"
         case .history: return "chart.xyaxis.line"
+        case .about: return "info.circle"
         }
     }
 }
 
-/// This Mac / Devices / History switcher. macOS 26+: a compact glass capsule with segments (like a
+/// This Mac / Devices / History / About switcher. macOS 26+: a compact glass capsule with segments (like a
 /// Tahoe segmented control). macOS 14–25: the toolbar-style icon-over-label tabs.
 /// Custom-drawn either way so `--render` can capture it.
 struct WindowTabBar: View {
@@ -249,6 +267,9 @@ enum WindowRenderEntries {
         var onBattery = BatterySnapshot.sampleOnBattery
         onBattery.manufactureDate = Calendar(identifier: .gregorian)
             .date(from: DateComponents(year: 2024, month: 10, day: 17))
+        let aboutInfo = AboutInfo(version: AboutInfo.fallbackVersion, build: AboutInfo.fallbackBuild,
+                                  copyright: AboutInfo.fallbackCopyright, osVersion: "macOS 27.2 (27C61)",
+                                  mac: mac, icon: AboutInfo.appIcon())
         let end = Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 11, day: 15)) ?? Date()
 
         return [
@@ -303,6 +324,16 @@ enum WindowRenderEntries {
             RenderEntry("window-history-empty") {
                 frame(.history) {
                     HistoryContent(history: [], deviceTitle: "This Mac (MacBook Pro)")
+                }
+            },
+            RenderEntry("window-about") {
+                frame(.about) {
+                    AboutContent(info: aboutInfo, diagnostics: { "" })
+                }
+            },
+            RenderEntry("window-about-copied") {
+                frame(.about) {
+                    AboutContent(info: aboutInfo, diagnostics: { "" }, showsCopied: true)
                 }
             },
             RenderEntry("settings") {
