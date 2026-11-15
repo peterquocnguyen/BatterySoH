@@ -179,6 +179,21 @@ public final class MobileDeviceMonitor: @unchecked Sendable {
             _ = api.invalidate(service)
             Unmanaged<AnyObject>.fromOpaque(service).release()
         }
+        if ProcessInfo.processInfo.environment["BB_DEBUG_MOBILE"] != nil {
+            // Field names for fixture capture / debugging; values only for scalars.
+            for (k, v) in (registry ?? [:]).sorted(by: { $0.key < $1.key }) {
+                let shown = (v is NSNumber || v is String) ? "\(v)" : "<\(type(of: v))>"
+                FileHandle.standardError.write("registry \(k) = \(shown)\n".data(using: .utf8)!)
+                if let nested = v as? [String: Any] {
+                    for (nk, nv) in nested.sorted(by: { $0.key < $1.key }) where nv is NSNumber {
+                        FileHandle.standardError.write("registry \(k).\(nk) = \(nv)\n".data(using: .utf8)!)
+                    }
+                }
+            }
+            for (k, v) in battery.sorted(by: { $0.key < $1.key }) {
+                FileHandle.standardError.write("battery \(k) = \(v)\n".data(using: .utf8)!)
+            }
+        }
         return MobileBatteryParser.parse(id: udid, lockdown: lockdown, battery: battery,
                                          registry: registry, connection: connection)
     }
