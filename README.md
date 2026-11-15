@@ -3,7 +3,7 @@
 A small, native macOS menu bar app that shows what the battery and charger in your Mac are
 doing right now, and how the battery ages over time. SwiftUI, no dependencies, read-only.
 
-Version 0.1.1 (build 2) · by Peter Ng
+Version 0.1.1 (build 2) · by Peter Quoc
 
 ## Features
 
@@ -107,7 +107,7 @@ root or helper tool, and makes no network connections. Apart from its settings (
 
 ## About
 
-Battery Buddy is written by Peter Ng. © 2026 Peter Ng.
+Battery Buddy is written by Peter Quoc. © 2026 Peter Quoc.
 
 The diagnostics report leaves out the battery serial number. Website, support and license
 links are not set yet.

@@ -165,10 +165,23 @@ public enum EnergyModeControl {
         "do shell script \"\(command(setting: mode, for: source))\" with administrator privileges"
     }
 
-    /// Changes the mode for `source`. Shows the macOS administrator password prompt and
-    /// blocks until it is answered, so call it off the main thread.
+    /// Changes the mode for `source`. Uses the password-free sudo rule when it is installed
+    /// (`PasswordFreeEnergyMode`), otherwise shows the macOS administrator password prompt and
+    /// blocks until it is answered. `NSAppleScript` is not thread-safe: call on the main thread.
     public static func set(_ mode: EnergyMode, for source: PowerSourceKind) throws {
-        guard let script = NSAppleScript(source: appleScriptSource(setting: mode, for: source)) else {
+        if PasswordFreeEnergyMode.isInstalled() {
+            let args = ["-n", pmsetPath, source.pmsetFlag, "powermode", String(mode.rawValue)]
+            if run(args, executable: PasswordFreeEnergyMode.sudoPath) != nil { return }
+            // Rule present but sudo refused (e.g. edited by hand): fall back to the prompt.
+        }
+        try runAsAdmin(command(setting: mode, for: source))
+    }
+
+    /// Runs a fixed shell command as root behind the system administrator prompt.
+    static func runAsAdmin(_ shellCommand: String) throws {
+        let escaped = shellCommand.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        guard let script = NSAppleScript(source: "do shell script \"\(escaped)\" with administrator privileges") else {
             throw EnergyModeError.failed("Could not prepare the authorization request.")
         }
         var errorInfo: NSDictionary?
@@ -177,13 +190,13 @@ public enum EnergyModeControl {
         let number = errorInfo[NSAppleScript.errorNumber] as? Int
         if number == -128 { throw EnergyModeError.cancelledByUser } // userCanceledErr
         let message = errorInfo[NSAppleScript.errorMessage] as? String
-        throw EnergyModeError.failed(message ?? "pmset failed (error \(number ?? 0)).")
+        throw EnergyModeError.failed(message ?? "Command failed (error \(number ?? 0)).")
     }
 
-    /// Runs pmset with fixed arguments and returns stdout, or nil on failure.
-    static func run(_ arguments: [String]) -> String? {
+    /// Runs a tool with fixed arguments (no shell) and returns stdout, or nil on failure.
+    static func run(_ arguments: [String], executable: String = pmsetPath) -> String? {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: pmsetPath)
+        process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
         let pipe = Pipe()
         process.standardOutput = pipe

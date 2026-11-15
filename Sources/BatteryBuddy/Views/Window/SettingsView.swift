@@ -49,6 +49,25 @@ struct SettingsView: View {
                 }
             }
 
+            Section {
+                Toggle("Change Energy Mode without a password", isOn: Binding(
+                    get: { model.isPasswordFreeEnergyMode },
+                    set: { model.setPasswordFreeEnergyMode($0) }))
+                if let error = model.controlError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } header: {
+                Text("Energy Mode")
+            } footer: {
+                Text("Adds a rule to \(PasswordFreeEnergyMode.sudoersPath) that lets only you run the six `pmset powermode` commands without a password. Turning it on or off asks for your password once.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
             Section("General") {
                 Toggle("Launch at login", isOn: launchBinding)
                 if launchStatus == .requiresApproval {

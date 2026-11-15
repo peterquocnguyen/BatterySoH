@@ -170,7 +170,7 @@ private struct AboutPrivacyCard: View {
 /// build it with fixed values; the window uses `current(mac:)`.
 struct AboutInfo {
     static let appName = "Battery Buddy"
-    static let author = "Peter Ng"
+    static let author = "Peter Quoc"
     static let tagline = "A lightweight battery and charger monitor for your Mac."
     static let privacy = "Battery Buddy works offline. It reads battery data from macOS and never sends anything anywhere."
     static let credits = "Data from IOKit (AppleSmartBattery), IOPowerSources and the SMC."
@@ -179,7 +179,7 @@ struct AboutInfo {
     // Info.plist. Keep in sync with Resources/Info.plist.
     static let fallbackVersion = "0.1.1"
     static let fallbackBuild = "2"
-    static let fallbackCopyright = "© 2026 Peter Ng"
+    static let fallbackCopyright = "© 2026 Peter Quoc"
 
     // TODO(About links): website URL — not chosen yet. Add a link row to AboutContent once set.
     static let websiteURL: URL? = nil

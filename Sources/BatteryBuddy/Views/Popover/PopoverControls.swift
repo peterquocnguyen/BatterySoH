@@ -74,6 +74,20 @@ struct PopoverEnergyModeSection: View {
                     }
                 }
             }
+            if !model.isPasswordFreeEnergyMode, !model.supportedEnergyModes.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "key.fill")
+                        .foregroundStyle(.secondary)
+                    Text("Asks for your password each time.")
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 4)
+                    Button("Set up once…") { model.setPasswordFreeEnergyMode(true) }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.accentColor)
+                        .help("Installs a sudo rule that allows only the Energy Mode pmset commands without a password. You enter your password once. Remove it in Settings.")
+                }
+                .font(.system(size: 11.5))
+            }
             if let error = model.controlError {
                 PopoverControlError(text: error)
             }
@@ -145,7 +159,7 @@ struct PopoverEnergyModeButton: View {
         .onHover { hovering = $0 }
         .help(isSelected
               ? "\(mode.title) is on."
-              : "Switch to \(mode.title). macOS asks for an administrator password to change Energy Mode.")
+              : "Switch to \(mode.title).")
         .accessibilityLabel("Energy Mode \(mode.title)")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }

@@ -116,7 +116,7 @@ Compact rows under the flow: Battery Charge (bar + one-decimal %), Battery Healt
 - Private-API use is isolated in one file so it can be dropped if macOS changes it.
 
 ### F9 — About
-Tab in the main window: app icon, name, version (build), author **Peter Ng**, copyright,
+Tab in the main window: app icon, name, version (build), author **Peter Quoc**, copyright,
 one-line description, privacy statement (no network, no data collection), credits for
 data sources, "Copy Diagnostics" (bbstat-style text for bug reports).
 

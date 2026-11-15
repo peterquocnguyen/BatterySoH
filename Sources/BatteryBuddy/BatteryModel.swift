@@ -36,6 +36,8 @@ final class BatteryModel {
     private(set) var chargeToFullRequestedAt: Date?
     /// Short-lived message for a failed control action (user cancel is not an error).
     private(set) var controlError: String?
+    /// True when the password-free sudo rule for Energy Mode is installed.
+    private(set) var isPasswordFreeEnergyMode = false
 
     @ObservationIgnored private var controlsReadInFlight = false
     @ObservationIgnored private var controlsReadQueued = false
@@ -132,10 +134,12 @@ final class BatteryModel {
         controlsReadInFlight = true
         let needCapabilities = currentPowerSource.map { capabilityCache[$0] == nil } ?? true
         Task { [weak self] in
-            let (energy, limit) = await Task.detached(priority: .utility) {
-                (EnergyModeControl.read(includeCapabilities: needCapabilities), ChargeLimit.shared.status())
+            let (energy, limit, passwordFree) = await Task.detached(priority: .utility) {
+                (EnergyModeControl.read(includeCapabilities: needCapabilities), ChargeLimit.shared.status(),
+                 PasswordFreeEnergyMode.isInstalled())
             }.value
             guard let self else { return }
+            if passwordFree != self.isPasswordFreeEnergyMode { self.isPasswordFreeEnergyMode = passwordFree }
             self.applyControls(energy: energy, limit: limit)
             self.controlsReadInFlight = false
             if self.controlsReadQueued {
@@ -176,6 +180,21 @@ final class BatteryModel {
             showControlError("Couldn't change Energy Mode: \(error.localizedDescription)")
         }
         refreshControls()
+    }
+
+    /// Installs or removes the password-free sudo rule (one administrator prompt either way).
+    func setPasswordFreeEnergyMode(_ enabled: Bool) {
+        guard !isStatic, enabled != isPasswordFreeEnergyMode else { return }
+        do {
+            if enabled { try PasswordFreeEnergyMode.install() } else { try PasswordFreeEnergyMode.uninstall() }
+            clearControlError()
+        } catch EnergyModeError.cancelledByUser {
+        } catch EnergyModeError.failed(let message) {
+            showControlError("Couldn't \(enabled ? "enable" : "disable") password-free Energy Mode: \(message)")
+        } catch {
+            showControlError(error.localizedDescription)
+        }
+        isPasswordFreeEnergyMode = PasswordFreeEnergyMode.isInstalled()
     }
 
     /// Same as the native Battery menu item: lifts the charge limit until the battery is full.

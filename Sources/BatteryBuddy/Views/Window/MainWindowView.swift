@@ -30,12 +30,23 @@ struct MainWindowView: View {
     @ViewBuilder
     private var layout: some View {
         if #available(macOS 26, *) {
-            // Liquid Glass: translucent window, content scrolls under the floating glass switcher
-            // and the transparent title bar.
+            // Native Tahoe layout: the switcher is a segmented control in the window toolbar, so
+            // the system places it in the title bar, gives it Liquid Glass, and fades content that
+            // scrolls under the toolbar (scroll edge effect) instead of overlapping it.
             scrollContent
-                .safeAreaInset(edge: .top, spacing: 0) { WindowTabBar(selection: $tab) }
+                .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        Picker("Section", selection: $tab) {
+                            ForEach(WindowTab.allCases) { tab in
+                                Text(tab.title).tag(tab)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .fixedSize()
+                    }
+                }
                 .containerBackground(.thinMaterial, for: .window)
-                .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
         } else {
             VStack(spacing: 0) {
                 WindowTabBar(selection: $tab)
