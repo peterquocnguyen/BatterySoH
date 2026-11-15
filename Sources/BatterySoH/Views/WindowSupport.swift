@@ -51,11 +51,12 @@ enum DebugWindows {
     @MainActor
     static func dump(_ window: NSWindow, label: String) {
         guard enabled else { return }
-        log("=== \(label): \(type(of: window)) frame=\(window.frame) styleMask=0x\(String(window.styleMask.rawValue, radix: 16))"
-            + " opaque=\(window.isOpaque) bg=\(window.backgroundColor.debugDescription)"
-            + " level=\(window.level.rawValue) shadow=\(window.hasShadow)"
-            + " appearance=\(window.effectiveAppearance.name.rawValue)"
-            + " titlebarTransparent=\(window.titlebarAppearsTransparent)")
+        log(
+            "=== \(label): \(type(of: window)) frame=\(window.frame) styleMask=0x\(String(window.styleMask.rawValue, radix: 16))"
+                + " opaque=\(window.isOpaque) bg=\(window.backgroundColor.debugDescription)"
+                + " level=\(window.level.rawValue) shadow=\(window.hasShadow)"
+                + " appearance=\(window.effectiveAppearance.name.rawValue)"
+                + " titlebarTransparent=\(window.titlebarAppearsTransparent)")
         if let root = window.contentView?.superview ?? window.contentView {
             dumpView(root, depth: 0, contentView: window.contentView)
         }
@@ -70,11 +71,13 @@ enum DebugWindows {
         if view.isHidden { line += " HIDDEN" }
         if view.alphaValue < 1 { line += " alpha=\(view.alphaValue)" }
         if let effect = view as? NSVisualEffectView {
-            line += " material=\(effect.material.rawValue) blending=\(effect.blendingMode.rawValue)"
+            line +=
+                " material=\(effect.material.rawValue) blending=\(effect.blendingMode.rawValue)"
                 + " state=\(effect.state.rawValue) mask=\(effect.maskImage != nil)"
         }
         if #available(macOS 26, *), let glass = view as? NSGlassEffectView {
-            line += " glass(style=\(glass.style.rawValue) radius=\(glass.cornerRadius)"
+            line +=
+                " glass(style=\(glass.style.rawValue) radius=\(glass.cornerRadius)"
                 + " tint=\(glass.tintColor?.debugDescription ?? "nil"))"
         }
         if let layer = view.layer {
@@ -83,13 +86,15 @@ enum DebugWindows {
             if let filters = layer.filters, !filters.isEmpty { line += " filters=\(filters)" }
             if let comp = layer.compositingFilter { line += " comp=\(comp)" }
             if let subs = layer.sublayers, !subs.isEmpty, depth < 3 || view.frame.width > 300 {
-                line += " sublayers=[" + subs.prefix(6).map { l in
-                    var d = "\(type(of: l))"
-                    if let f = l.filters, !f.isEmpty { d += "{filters:\(f)}" }
-                    if l.cornerRadius > 0 { d += "{r=\(l.cornerRadius)}" }
-                    if let bg = l.backgroundColor { d += "{bg a=\(bg.alpha)}" }
-                    return d
-                }.joined(separator: ",") + "]"
+                line +=
+                    " sublayers=["
+                    + subs.prefix(6).map { l in
+                        var d = "\(type(of: l))"
+                        if let f = l.filters, !f.isEmpty { d += "{filters:\(f)}" }
+                        if l.cornerRadius > 0 { d += "{r=\(l.cornerRadius)}" }
+                        if let bg = l.backgroundColor { d += "{bg a=\(bg.alpha)}" }
+                        return d
+                    }.joined(separator: ",") + "]"
             }
             if layer.cornerRadius > 0 { line += " layer.radius=\(layer.cornerRadius)" }
             if let bg = layer.backgroundColor { line += " layer.bg=\(bg)" }

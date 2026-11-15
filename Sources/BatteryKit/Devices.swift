@@ -6,7 +6,7 @@ import Foundation
 public struct DeviceBattery: Codable, Equatable, Sendable, Identifiable {
     public enum Kind: String, Codable, Sendable, CaseIterable {
         case iPhone, iPad, iPod, watch, airPods, headphones, mouse, keyboard, trackpad,
-             gameController, pencil, other
+            gameController, pencil, other
     }
 
     public enum Connection: String, Codable, Sendable {
@@ -78,13 +78,15 @@ public struct DeviceBattery: Codable, Equatable, Sendable, Identifiable {
         return (Double(full) / Double(design) * 1000).rounded() / 10
     }
 
-    public init(id: String, name: String, kind: Kind, connection: Connection? = nil,
-                model: String? = nil, osVersion: String? = nil, percent: Int?,
-                isCharging: Bool = false, externalConnected: Bool = false, parts: [Part] = [],
-                fullChargeCapacityMAh: Int? = nil, designCapacityMAh: Int? = nil,
-                cycleCount: Int? = nil, temperatureC: Double? = nil, note: String? = nil,
-                isApproximate: Bool = false, updatedAt: Date? = nil, isLastKnown: Bool = false,
-                nominalChargeCapacityMAh: Int? = nil, unexpectedShutdownRecorded: Bool? = nil) {
+    public init(
+        id: String, name: String, kind: Kind, connection: Connection? = nil,
+        model: String? = nil, osVersion: String? = nil, percent: Int?,
+        isCharging: Bool = false, externalConnected: Bool = false, parts: [Part] = [],
+        fullChargeCapacityMAh: Int? = nil, designCapacityMAh: Int? = nil,
+        cycleCount: Int? = nil, temperatureC: Double? = nil, note: String? = nil,
+        isApproximate: Bool = false, updatedAt: Date? = nil, isLastKnown: Bool = false,
+        nominalChargeCapacityMAh: Int? = nil, unexpectedShutdownRecorded: Bool? = nil
+    ) {
         self.id = id
         self.name = name
         self.kind = kind
@@ -138,7 +140,8 @@ public enum AccessoryParser {
             if BatteryParser.string(source["Type"]) == "InternalBattery" { continue }
             if BatteryParser.string(source["Transport Type"]) == "Internal" { continue }
             if BatteryParser.bool(source["Is Present"]) == false { continue }
-            let key = BatteryParser.string(source["Group Identifier"])
+            let key =
+                BatteryParser.string(source["Group Identifier"])
                 ?? BatteryParser.string(source["Accessory Identifier"])
                 ?? BatteryParser.int(source["Power Source ID"]).map(String.init)
                 ?? BatteryParser.string(source["Name"])
@@ -158,8 +161,9 @@ public enum AccessoryParser {
         var parts: [DeviceBattery.Part] = []
         if sources.count > 1 || partName(first) != nil {
             parts = sources.map { s in
-                DeviceBattery.Part(name: partName(s) ?? BatteryParser.string(s["Name"]) ?? "Battery",
-                                   percent: percent(s), isCharging: charging(s))
+                DeviceBattery.Part(
+                    name: partName(s) ?? BatteryParser.string(s["Name"]) ?? "Battery",
+                    percent: percent(s), isCharging: charging(s))
             }
             parts.sort { partRank($0.name) < partRank($1.name) }
         }
@@ -193,7 +197,9 @@ public enum AccessoryParser {
 
     /// "Left" / "Right" / "Case" for AirPods-style parts; nil for single-battery accessories.
     static func partName(_ s: [String: Any]) -> String? {
-        guard let raw = BatteryParser.string(s["Part Identifier"]) ?? BatteryParser.string(s["Part Name"]) else { return nil }
+        guard let raw = BatteryParser.string(s["Part Identifier"]) ?? BatteryParser.string(s["Part Name"]) else {
+            return nil
+        }
         let lower = raw.lowercased()
         if lower.contains("left") { return "Left" }
         if lower.contains("right") { return "Right" }
@@ -226,7 +232,9 @@ public enum AccessoryParser {
         if c.contains("trackpad") { return .trackpad }
         if c.contains("keyboard") { return .keyboard }
         if c.contains("game") || c.contains("controller") { return .gameController }
-        if c.contains("headphone") || c.contains("headset") || c.contains("audio") || c.contains("speaker") { return .headphones }
+        if c.contains("headphone") || c.contains("headset") || c.contains("audio") || c.contains("speaker") {
+            return .headphones
+        }
         if c.contains("watch") { return .watch }
         if c.contains("pencil") || c.contains("stylus") { return .pencil }
         if n.contains("mouse") { return .mouse }
@@ -247,9 +255,11 @@ public enum AccessoryParser {
 /// - `registry`: diagnostics relay IORegistry dump of the device's `IOPMPowerSource`, when the
 ///   device is trusted (capacities, cycles, temperature).
 public enum MobileBatteryParser {
-    public static func parse(id: String, lockdown: [String: Any], battery: [String: Any],
-                             registry: [String: Any]?, connection: DeviceBattery.Connection?,
-                             note: String? = nil, updatedAt: Date? = nil) -> DeviceBattery {
+    public static func parse(
+        id: String, lockdown: [String: Any], battery: [String: Any],
+        registry: [String: Any]?, connection: DeviceBattery.Connection?,
+        note: String? = nil, updatedAt: Date? = nil
+    ) -> DeviceBattery {
         let deviceClass = BatteryParser.string(lockdown["DeviceClass"])
         let kind = kind(deviceClass: deviceClass, productType: BatteryParser.string(lockdown["ProductType"]))
         let name = BatteryParser.string(lockdown["DeviceName"]) ?? deviceClass ?? "iOS device"
@@ -257,15 +267,19 @@ public enum MobileBatteryParser {
         let batteryData = reg["BatteryData"] as? [String: Any] ?? [:]
 
         let percent = BatteryParser.int(battery["BatteryCurrentCapacity"]) ?? BatteryParser.int(reg["CurrentCapacity"])
-        let charging = BatteryParser.bool(battery["BatteryIsCharging"]) ?? BatteryParser.bool(reg["IsCharging"]) ?? false
-        let external = BatteryParser.bool(battery["ExternalConnected"]) ?? BatteryParser.bool(reg["ExternalConnected"]) ?? false
+        let charging =
+            BatteryParser.bool(battery["BatteryIsCharging"]) ?? BatteryParser.bool(reg["IsCharging"]) ?? false
+        let external =
+            BatteryParser.bool(battery["ExternalConnected"]) ?? BatteryParser.bool(reg["ExternalConnected"]) ?? false
 
         // Registry's percent-scale values (MaxCapacity = 100) are not mAh; prefer the raw keys.
-        let full = BatteryParser.positive(BatteryParser.int(reg["AppleRawMaxCapacity"])
-            ?? BatteryParser.int(reg["NominalChargeCapacity"])
-            ?? BatteryParser.int(batteryData["FullChargeCapacity"]))
-        let design = BatteryParser.positive(BatteryParser.int(reg["DesignCapacity"])
-            ?? BatteryParser.int(batteryData["DesignCapacity"]))
+        let full = BatteryParser.positive(
+            BatteryParser.int(reg["AppleRawMaxCapacity"])
+                ?? BatteryParser.int(reg["NominalChargeCapacity"])
+                ?? BatteryParser.int(batteryData["FullChargeCapacity"]))
+        let design = BatteryParser.positive(
+            BatteryParser.int(reg["DesignCapacity"])
+                ?? BatteryParser.int(batteryData["DesignCapacity"]))
 
         return DeviceBattery(
             id: id, name: name, kind: kind, connection: connection,
@@ -277,8 +291,9 @@ public enum MobileBatteryParser {
             cycleCount: BatteryParser.int(reg["CycleCount"]) ?? BatteryParser.int(batteryData["CycleCount"]),
             temperatureC: registry.flatMap(BatteryParser.temperature),
             note: note, updatedAt: updatedAt,
-            nominalChargeCapacityMAh: BatteryParser.positive(BatteryParser.int(reg["NominalChargeCapacity"])
-                ?? BatteryParser.int(batteryData["NominalChargeCapacity"])),
+            nominalChargeCapacityMAh: BatteryParser.positive(
+                BatteryParser.int(reg["NominalChargeCapacity"])
+                    ?? BatteryParser.int(batteryData["NominalChargeCapacity"])),
             unexpectedShutdownRecorded: unexpectedShutdown(reg["BatteryShutdownReason"]))
     }
 
@@ -364,7 +379,8 @@ public final class LastExactReadingStore {
     public func load(now: Date = Date()) {
         readings = [:]
         guard let data = try? Data(contentsOf: fileURL),
-              let file = try? Self.decoder.decode(File.self, from: data) else { return }
+            let file = try? Self.decoder.decode(File.self, from: data)
+        else { return }
         for d in file.devices where d.isExactReading {
             if Self.isExpired(d, now: now) { dirty = true } else { readings[d.id] = d }
         }
@@ -396,7 +412,8 @@ public final class LastExactReadingStore {
     }
 
     private func write(now: Date) throws {
-        try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         readings = readings.filter { !Self.isExpired($0.value, now: now) }
         try Self.encoder.encode(File(devices: devices(now: now))).write(to: fileURL, options: .atomic)
         lastWrite = now

@@ -17,7 +17,10 @@ if args.contains("--help") || args.contains("-h") {
 }
 
 if args.contains("--smc") {
-    guard let smc = SMC() else { print("AppleSMC: cannot open"); exit(1) }
+    guard let smc = SMC() else {
+        print("AppleSMC: cannot open")
+        exit(1)
+    }
     for key in ["TB0T", "TB1T", "TB2T", "TB3T", "TC0P", "PSTR"] {
         print(key, smc.readDouble(key).map { String(format: "%.2f", $0) } ?? "—")
     }
@@ -45,7 +48,8 @@ if args.contains("--devices") {
     hotspot?.stop()
     // The app's last exact reading per iPhone / iPad (read only; the app owns the file).
     let remembered = LastExactReadingStore().devices
-    let devices = HotspotParser.merge(connected: mobile, remembered: remembered, nearby: nearby)
+    let devices =
+        HotspotParser.merge(connected: mobile, remembered: remembered, nearby: nearby)
         + AccessoryPowerSources.read()
     if args.contains("--json") {
         let enc = JSONEncoder()
@@ -72,12 +76,16 @@ if args.contains("--devices") {
             print("    \(part.name): \(part.percent.map { "\($0)%" } ?? Fmt.dash)\(part.isCharging ? " charging" : "")")
         }
         if d.designCapacityMAh != nil || d.cycleCount != nil {
-            print("    health \(Fmt.percent(d.healthPercent, decimals: 1)) (\(Fmt.mAh(d.fullChargeCapacityMAh)) of \(Fmt.mAh(d.designCapacityMAh))), cycles \(d.cycleCount.map(String.init) ?? Fmt.dash), \(Fmt.temperature(d.temperatureC))")
+            print(
+                "    health \(Fmt.percent(d.healthPercent, decimals: 1)) (\(Fmt.mAh(d.fullChargeCapacityMAh)) of \(Fmt.mAh(d.designCapacityMAh))), cycles \(d.cycleCount.map(String.init) ?? Fmt.dash), \(Fmt.temperature(d.temperatureC))"
+            )
         }
         if let c = BatteryCondition.device(d) {
             var line = "    condition \(c.cliText)"
             if let peak = c.peakPerformance { line += ", peak performance \(peak.cliText)" }
-            if let rated = BatteryCondition.ratedCycles(kind: d.kind, model: d.model) { line += ", rated \(rated) cycles" }
+            if let rated = BatteryCondition.ratedCycles(kind: d.kind, model: d.model) {
+                line += ", rated \(rated) cycles"
+            }
             print(line)
         }
         if let note = d.note { print("    \(note)") }
@@ -117,11 +125,18 @@ func row(_ k: String, _ v: String) { print(k.padding(toLength: 24, withPad: " ",
 print("\(mac.name)\(mac.detail.map { " (\($0))" } ?? "") · \(mac.chip ?? "?") · \(mac.identifier)")
 print(String(repeating: "─", count: 52))
 row("State", "\(s.statusTitle) — \(s.timeSummary)")
-row("Charge", "\(s.chargePercent)% (\(Fmt.percent(s.rawChargePercent, decimals: 1)) raw, \(Fmt.mAh(s.currentCapacityMAh)))")
-row("Health", "\(Fmt.percent(s.healthPercent, decimals: 1)) (\(Fmt.mAh(s.fullChargeCapacityMAh)) of \(Fmt.mAh(s.designCapacityMAh)))")
+row(
+    "Charge",
+    "\(s.chargePercent)% (\(Fmt.percent(s.rawChargePercent, decimals: 1)) raw, \(Fmt.mAh(s.currentCapacityMAh)))")
+row(
+    "Health",
+    "\(Fmt.percent(s.healthPercent, decimals: 1)) (\(Fmt.mAh(s.fullChargeCapacityMAh)) of \(Fmt.mAh(s.designCapacityMAh)))"
+)
 row("Cycles", "\(s.cycleCount.map(String.init) ?? Fmt.dash)\(s.designCycleCount.map { " of \($0)" } ?? "")")
 row("Condition", BatteryCondition.mac(s, reported: MacReportedHealth.read())?.cliText ?? Fmt.dash)
-row("Battery", "\(Fmt.volts(mV: s.voltageMV)) · \(Fmt.amps(mA: s.amperageMA)) · \(Fmt.watts(s.batteryPowerW, signed: true))")
+row(
+    "Battery",
+    "\(Fmt.volts(mV: s.voltageMV)) · \(Fmt.amps(mA: s.amperageMA)) · \(Fmt.watts(s.batteryPowerW, signed: true))")
 row("Temperature", Fmt.temperature(s.temperatureC))
 row("Mac uses", Fmt.watts(s.macLoadW))
 row("Power in", Fmt.watts(s.systemPowerInW))
@@ -142,8 +157,10 @@ if let energy = EnergyModeControl.read() {
         return "\(source.title): \(mode)\(source == currentSource ? " (now)" : "")"
     }
     row("Energy mode", perSource.joined(separator: " · "))
-    row("Energy modes offered", energy.supportedModes(for: currentSource).map(\.title).joined(separator: ", ")
-        + " (\(currentSource.title.lowercased()))")
+    row(
+        "Energy modes offered",
+        energy.supportedModes(for: currentSource).map(\.title).joined(separator: ", ")
+            + " (\(currentSource.title.lowercased()))")
 } else {
     row("Energy mode", "unavailable (no powermode in pmset)")
 }
@@ -157,7 +174,6 @@ if let limit = ChargeLimit.shared.status() {
     row("Charge limit", "unavailable (PowerUI)")
 }
 row("Gauge / serial", "\(s.gaugeName ?? Fmt.dash) / \(s.serial ?? Fmt.dash)")
-
 
 extension BatteryCondition {
     /// "Normal (macOS, max capacity 91%)", "Service Recommended (estimated, max capacity 74%)".

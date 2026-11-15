@@ -40,13 +40,16 @@ enum PopoverPalette {
         return charge
     }
 
-    private static func dynamic(light: (CGFloat, CGFloat, CGFloat),
-                                dark: (CGFloat, CGFloat, CGFloat)) -> Color {
-        Color(nsColor: NSColor(name: nil) { appearance in
-            let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-            let c = isDark ? dark : light
-            return NSColor(srgbRed: c.0, green: c.1, blue: c.2, alpha: 1)
-        })
+    private static func dynamic(
+        light: (CGFloat, CGFloat, CGFloat),
+        dark: (CGFloat, CGFloat, CGFloat)
+    ) -> Color {
+        Color(
+            nsColor: NSColor(name: nil) { appearance in
+                let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+                let c = isDark ? dark : light
+                return NSColor(srgbRed: c.0, green: c.1, blue: c.2, alpha: 1)
+            })
     }
 }
 
@@ -68,8 +71,10 @@ struct PopoverBatteryGlyph: View {
                     .strokeBorder(Color.secondary.opacity(0.75), lineWidth: line)
                 RoundedRectangle(cornerRadius: height * 0.16, style: .continuous)
                     .fill(fill)
-                    .frame(width: max(height * 0.2, (width - inset * 2) * min(1, max(0, fraction))),
-                           height: height - inset * 2)
+                    .frame(
+                        width: max(height * 0.2, (width - inset * 2) * min(1, max(0, fraction))),
+                        height: height - inset * 2
+                    )
                     .padding(.leading, inset)
             }
             .frame(width: width, height: height)
@@ -164,7 +169,8 @@ struct PopoverFooterButtonStyle: ButtonStyle {
     @State private var hovering = false
 
     func makeBody(configuration: Configuration) -> some View {
-        let shape = LiquidGlass.isSupported
+        let shape =
+            LiquidGlass.isSupported
             ? AnyShape(Capsule())
             : AnyShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         configuration.label
@@ -204,7 +210,11 @@ struct PopoverWrapLayout: Layout {
         }
     }
 
-    private struct Row { var indices: [Int] = []; var width: CGFloat = 0; var height: CGFloat = 0 }
+    private struct Row {
+        var indices: [Int] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
 
     private func arrange(width: CGFloat, subviews: Subviews) -> [Row] {
         var rows: [Row] = [Row()]

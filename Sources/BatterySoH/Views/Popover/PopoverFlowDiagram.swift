@@ -27,26 +27,31 @@ struct PopoverFlowDiagram: View {
                     .font(.system(size: 22, weight: .medium))
                     .rotationEffect(.degrees(plugged ? 0 : -90))
             }
-            FlowLink(top: plugged ? Fmt.watts(display.powerInW) : "",
-                     bottom: plugged ? display.chargerElectrical : "",
-                     color: PopoverPalette.charger,
-                     direction: plugged ? .forward : .none,
-                     period: PopoverDisplay.period(forWatts: display.powerInW),
-                     animate: animate)
-                .frame(height: nodeSize)
+            FlowLink(
+                top: plugged ? Fmt.watts(display.powerInW) : "",
+                bottom: plugged ? display.chargerElectrical : "",
+                color: PopoverPalette.charger,
+                direction: plugged ? .forward : .none,
+                period: PopoverDisplay.period(forWatts: display.powerInW),
+                animate: animate
+            )
+            .frame(height: nodeSize)
             FlowNode(caption: "Mac", value: display.macNodeValue, size: nodeSize, dimmed: false) {
                 Image(systemName: "laptopcomputer")
                     .font(.system(size: 24, weight: .regular))
             }
-            FlowLink(top: link.top, bottom: link.bottom,
-                     color: linkColor,
-                     direction: linkDirection,
-                     period: PopoverDisplay.period(forWatts: linkWatts),
-                     animate: animate)
-                .frame(height: nodeSize)
+            FlowLink(
+                top: link.top, bottom: link.bottom,
+                color: linkColor,
+                direction: linkDirection,
+                period: PopoverDisplay.period(forWatts: linkWatts),
+                animate: animate
+            )
+            .frame(height: nodeSize)
             FlowNode(caption: "Battery", value: display.chargeText, size: nodeSize, dimmed: false) {
-                PopoverBatteryGlyph(fraction: display.chargeFraction, fill: display.chargeColor,
-                                    width: 28, height: 14)
+                PopoverBatteryGlyph(
+                    fraction: display.chargeFraction, fill: display.chargeColor,
+                    width: 28, height: 14)
             }
         }
         .padding(.horizontal, 6)
@@ -90,7 +95,8 @@ struct PopoverFlowDiagram: View {
             return "Charger supplies \(Fmt.watts(display.powerInW)) and the battery at \(display.chargeText) "
                 + "adds \(Fmt.watts(s.batteryPowerW.map { abs($0) })). Mac \(display.macNodeValue)."
         case .full, .onACNotCharging:
-            return "Charger supplies \(Fmt.watts(display.powerInW)) to the Mac. Battery \(display.statusTitle.lowercased()) at \(display.chargeText)."
+            return
+                "Charger supplies \(Fmt.watts(display.powerInW)) to the Mac. Battery \(display.statusTitle.lowercased()) at \(display.chargeText)."
         }
     }
 }
@@ -153,7 +159,8 @@ private struct FlowLink: View {
                 .lineLimit(1)
                 .frame(height: 15)
             TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !animate || direction == .none)) { context in
-                let phase = animate
+                let phase =
+                    animate
                     ? context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period) / period
                     : Self.restingPhase
                 Canvas { ctx, size in draw(in: &ctx, size: size, phase: phase) }
@@ -172,18 +179,21 @@ private struct FlowLink: View {
 
     private func draw(in ctx: inout GraphicsContext, size: CGSize, phase: Double) {
         let y = size.height / 2
-        let x0: CGFloat = 1, x1 = size.width - 1
+        let x0: CGFloat = 1
+        let x1 = size.width - 1
         var line = Path()
         line.move(to: CGPoint(x: x0, y: y))
         line.addLine(to: CGPoint(x: x1, y: y))
 
         guard direction != .none else {
-            ctx.stroke(line, with: .color(.secondary.opacity(0.35)),
-                       style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [2, 4]))
+            ctx.stroke(
+                line, with: .color(.secondary.opacity(0.35)),
+                style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [2, 4]))
             return
         }
-        ctx.stroke(line, with: .color(color.opacity(0.3)),
-                   style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [4, 4]))
+        ctx.stroke(
+            line, with: .color(color.opacity(0.3)),
+            style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [4, 4]))
 
         let forward = direction == .forward
         let tip = forward ? x1 : x0

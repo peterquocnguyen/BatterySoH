@@ -43,8 +43,10 @@ public struct BatteryCondition: Codable, Equatable, Sendable {
     /// Apple considers a battery worn below 80 % of its design capacity.
     public static let serviceThresholdPercent = 80
 
-    public init(status: Status, source: Source, maximumCapacityPercent: Int?,
-                permanentFailure: Bool = false, peakPerformance: PeakPerformance? = nil) {
+    public init(
+        status: Status, source: Source, maximumCapacityPercent: Int?,
+        permanentFailure: Bool = false, peakPerformance: PeakPerformance? = nil
+    ) {
         self.status = status
         self.source = source
         self.maximumCapacityPercent = maximumCapacityPercent
@@ -65,49 +67,63 @@ public struct BatteryCondition: Codable, Equatable, Sendable {
     /// (5,744 of 6,249 mAh → 91 %, what System Information shows for the same battery).
     public static func maximumCapacityPercent(nominalMAh: Int?, fullMAh: Int?, designMAh: Int?) -> Int? {
         guard let design = designMAh, design > 0,
-              let capacity = BatteryParser.positive(nominalMAh) ?? BatteryParser.positive(fullMAh) else { return nil }
+            let capacity = BatteryParser.positive(nominalMAh) ?? BatteryParser.positive(fullMAh)
+        else { return nil }
         return min(100, capacity * 100 / design)
     }
 
     /// Condition worked out from capacity alone (plus, for iPhone, the shutdown record).
     /// nil when there is nothing to go on.
-    public static func estimate(maximumCapacityPercent: Int?, permanentFailure: Bool = false,
-                                unexpectedShutdown: Bool? = nil, isIPhone: Bool = false) -> BatteryCondition? {
+    public static func estimate(
+        maximumCapacityPercent: Int?, permanentFailure: Bool = false,
+        unexpectedShutdown: Bool? = nil, isIPhone: Bool = false
+    ) -> BatteryCondition? {
         guard maximumCapacityPercent != nil || permanentFailure else { return nil }
         let worn = maximumCapacityPercent.map { $0 < serviceThresholdPercent } ?? false
         var peak: PeakPerformance?
         if isIPhone, maximumCapacityPercent != nil {
-            if worn { peak = .worn } else if unexpectedShutdown == true { peak = .unexpectedShutdown } else { peak = .normal }
+            if worn {
+                peak = .worn
+            } else if unexpectedShutdown == true {
+                peak = .unexpectedShutdown
+            } else {
+                peak = .normal
+            }
         }
-        return BatteryCondition(status: worn || permanentFailure ? .serviceRecommended : .normal,
-                                source: .estimated, maximumCapacityPercent: maximumCapacityPercent,
-                                permanentFailure: permanentFailure, peakPerformance: peak)
+        return BatteryCondition(
+            status: worn || permanentFailure ? .serviceRecommended : .normal,
+            source: .estimated, maximumCapacityPercent: maximumCapacityPercent,
+            permanentFailure: permanentFailure, peakPerformance: peak)
     }
 
     /// This Mac: macOS's own condition when `reported` has one, else an estimate.
     public static func mac(_ snapshot: BatterySnapshot, reported: MacReportedHealth?) -> BatteryCondition? {
-        let computed = maximumCapacityPercent(nominalMAh: snapshot.nominalChargeCapacityMAh,
-                                              fullMAh: snapshot.fullChargeCapacityMAh,
-                                              designMAh: snapshot.designCapacityMAh)
+        let computed = maximumCapacityPercent(
+            nominalMAh: snapshot.nominalChargeCapacityMAh,
+            fullMAh: snapshot.fullChargeCapacityMAh,
+            designMAh: snapshot.designCapacityMAh)
         let failure = (snapshot.permanentFailureStatus ?? 0) != 0
         let maxCapacity = reported?.maximumCapacityPercent ?? computed
         guard let status = reported?.status else {
             return estimate(maximumCapacityPercent: maxCapacity, permanentFailure: failure)
         }
         let permanent = failure || reported?.isPermanentFailure == true
-        return BatteryCondition(status: permanent ? .serviceRecommended : status, source: .macOS,
-                                maximumCapacityPercent: maxCapacity, permanentFailure: permanent)
+        return BatteryCondition(
+            status: permanent ? .serviceRecommended : status, source: .macOS,
+            maximumCapacityPercent: maxCapacity, permanentFailure: permanent)
     }
 
     /// iPhone / iPad: an estimate from the last exact read. nil for accessories, hotspot
     /// levels and untrusted devices (no capacity).
     public static func device(_ d: DeviceBattery) -> BatteryCondition? {
         guard d.isIOSDevice, !d.isApproximate else { return nil }
-        let maxCapacity = maximumCapacityPercent(nominalMAh: d.nominalChargeCapacityMAh,
-                                                 fullMAh: d.fullChargeCapacityMAh,
-                                                 designMAh: d.designCapacityMAh)
-        return estimate(maximumCapacityPercent: maxCapacity, unexpectedShutdown: d.unexpectedShutdownRecorded,
-                        isIPhone: d.kind == .iPhone)
+        let maxCapacity = maximumCapacityPercent(
+            nominalMAh: d.nominalChargeCapacityMAh,
+            fullMAh: d.fullChargeCapacityMAh,
+            designMAh: d.designCapacityMAh)
+        return estimate(
+            maximumCapacityPercent: maxCapacity, unexpectedShutdown: d.unexpectedShutdownRecorded,
+            isIPhone: d.kind == .iPhone)
     }
 
     /// Full cycles the battery is rated for while keeping 80 % of its capacity: the gauge's own
@@ -163,7 +179,8 @@ public struct MacReportedHealth: Codable, Equatable, Sendable {
     /// Pure: parses `system_profiler SPPowerDataType -json` output.
     public static func parse(systemProfilerJSON data: Data) -> MacReportedHealth? {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let items = root["SPPowerDataType"] as? [[String: Any]] else { return nil }
+            let items = root["SPPowerDataType"] as? [[String: Any]]
+        else { return nil }
         for item in items {
             guard let info = item["sppower_battery_health_info"] as? [String: Any] else { continue }
             let health = info["sppower_battery_health"] as? String

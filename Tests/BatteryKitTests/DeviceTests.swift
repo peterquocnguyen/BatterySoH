@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import BatteryKit
 
 @Suite("Accessory power sources")
@@ -12,7 +13,7 @@ struct AccessoryParserTests {
         "Low Warn Level": 20,
         "Max Capacity": 100,
         "Name": "Logi M650 L",
-        "Power Source ID": 40309799,
+        "Power Source ID": 40_309_799,
         "Power Source State": "Battery Power",
         "Product ID": 45098,
         "Transport Type": "Bluetooth LE",
@@ -52,19 +53,23 @@ struct AccessoryParserTests {
     }
 
     @Test func groupsAirPodsPartsAndUsesLowestBud() throws {
-        let devices = AccessoryParser.parse([Self.bud("Case", 88, charging: true), Self.bud("Right", 47), Self.bud("Left", 41)])
+        let devices = AccessoryParser.parse([
+            Self.bud("Case", 88, charging: true), Self.bud("Right", 47), Self.bud("Left", 41),
+        ])
         let d = try #require(devices.first)
         #expect(devices.count == 1)
         #expect(d.kind == .airPods)
         #expect(d.parts.map(\.name) == ["Left", "Right", "Case"])
         #expect(d.percent == 41)
-        #expect(d.isCharging == false) // only the case charges
+        #expect(d.isCharging == false)  // only the case charges
         #expect(d.parts.last?.isCharging == true)
     }
 
     @Test func skipsInternalBattery() {
-        let builtIn: [String: Any] = ["Type": "InternalBattery", "Transport Type": "Internal",
-                                       "Current Capacity": 80, "Max Capacity": 100, "Name": "InternalBattery-0"]
+        let builtIn: [String: Any] = [
+            "Type": "InternalBattery", "Transport Type": "Internal",
+            "Current Capacity": 80, "Max Capacity": 100, "Name": "InternalBattery-0",
+        ]
         #expect(AccessoryParser.parse([builtIn]).isEmpty)
     }
 
@@ -73,15 +78,16 @@ struct AccessoryParserTests {
         #expect(AccessoryParser.parse([s]).first?.percent == 75)
     }
 
-    @Test(arguments: [
-        ("Keyboard", "Magic Keyboard", DeviceBattery.Kind.keyboard),
-        ("Trackpad", "Magic Trackpad", .trackpad),
-        ("Game Controller", "DualSense", .gameController),
-        ("Headphone", "Beats Studio Pro", .headphones),
-        ("Headphone", "AirPods Max", .airPods),
-        (nil, "Magic Mouse", .mouse),
-        (nil, "Something", .other),
-    ] as [(String?, String, DeviceBattery.Kind)])
+    @Test(
+        arguments: [
+            ("Keyboard", "Magic Keyboard", DeviceBattery.Kind.keyboard),
+            ("Trackpad", "Magic Trackpad", .trackpad),
+            ("Game Controller", "DualSense", .gameController),
+            ("Headphone", "Beats Studio Pro", .headphones),
+            ("Headphone", "AirPods Max", .airPods),
+            (nil, "Magic Mouse", .mouse),
+            (nil, "Something", .other),
+        ] as [(String?, String, DeviceBattery.Kind)])
     func kinds(_ category: String?, _ name: String, _ kind: DeviceBattery.Kind) {
         #expect(AccessoryParser.kind(category: category, name: name) == kind)
     }
@@ -93,15 +99,18 @@ struct MobileBatteryParserTests {
     static let lockdown: [String: Any] = [
         "DeviceName": "Test iPhone", "DeviceClass": "iPhone", "ProductType": "iPhone18,1", "ProductVersion": "26.1",
     ]
-    static let battery: [String: Any] = ["BatteryCurrentCapacity": 64, "BatteryIsCharging": true, "ExternalConnected": true]
+    static let battery: [String: Any] = [
+        "BatteryCurrentCapacity": 64, "BatteryIsCharging": true, "ExternalConnected": true,
+    ]
     static let registry: [String: Any] = [
         "AppleRawMaxCapacity": 3712, "DesignCapacity": 4005, "CycleCount": 212, "Temperature": 3020,
         "CurrentCapacity": 64, "MaxCapacity": 100,
     ]
 
     @Test func trustedDeviceHasHealth() {
-        let d = MobileBatteryParser.parse(id: "x", lockdown: Self.lockdown, battery: Self.battery,
-                                          registry: Self.registry, connection: .usb)
+        let d = MobileBatteryParser.parse(
+            id: "x", lockdown: Self.lockdown, battery: Self.battery,
+            registry: Self.registry, connection: .usb)
         #expect(d.kind == .iPhone)
         #expect(d.name == "Test iPhone")
         #expect(d.osVersion == "iOS 26.1")
@@ -115,8 +124,9 @@ struct MobileBatteryParserTests {
     }
 
     @Test func untrustedDeviceKeepsUnknownsNil() {
-        let d = MobileBatteryParser.parse(id: "x", lockdown: ["DeviceClass": "iPad", "ProductType": "iPad16,3"],
-                                          battery: [:], registry: nil, connection: .wifi, note: "Trust")
+        let d = MobileBatteryParser.parse(
+            id: "x", lockdown: ["DeviceClass": "iPad", "ProductType": "iPad16,3"],
+            battery: [:], registry: nil, connection: .wifi, note: "Trust")
         #expect(d.kind == .iPad)
         #expect(d.name == "iPad")
         #expect(d.percent == nil)
@@ -128,8 +138,9 @@ struct MobileBatteryParserTests {
 
     @Test func fallsBackToNominalCapacityAndRegistryPercent() {
         let reg: [String: Any] = ["NominalChargeCapacity": 7000, "DesignCapacity": 7600, "CurrentCapacity": 50]
-        let d = MobileBatteryParser.parse(id: "x", lockdown: ["DeviceClass": "iPad", "ProductVersion": "26.0"],
-                                          battery: [:], registry: reg, connection: .usb)
+        let d = MobileBatteryParser.parse(
+            id: "x", lockdown: ["DeviceClass": "iPad", "ProductVersion": "26.0"],
+            battery: [:], registry: reg, connection: .usb)
         #expect(d.percent == 50)
         #expect(d.fullChargeCapacityMAh == 7000)
         #expect(d.osVersion == "iPadOS 26.0")
@@ -140,8 +151,10 @@ struct MobileBatteryParserTests {
 struct HotspotParserTests {
     @Test func parsesAdvertisementAndMarksTruncatedName() throws {
         // Shape observed live: name cut to 12 UTF-8 bytes, model, batteryLife as NSNumber.
-        let d = try #require(HotspotParser.parse(identifier: "ID-1", name: "Alice’s iP", model: "iPhone14,8",
-                                                 batteryLife: NSNumber(value: 75)))
+        let d = try #require(
+            HotspotParser.parse(
+                identifier: "ID-1", name: "Alice’s iP", model: "iPhone14,8",
+                batteryLife: NSNumber(value: 75)))
         #expect(d.name == "Alice’s iP…")
         #expect(d.kind == .iPhone)
         #expect(d.connection == .nearby)
@@ -158,10 +171,13 @@ struct HotspotParserTests {
     }
 
     @Test func cabledReadWinsOverNearbyDuplicate() throws {
-        let nearby = try #require(HotspotParser.parse(identifier: "n", name: "Alice’s iP", model: "iPhone14,8", batteryLife: 75))
-        let other = try #require(HotspotParser.parse(identifier: "o", name: "Kid", model: "iPhone12,1", batteryLife: 40))
-        let cabled = DeviceBattery(id: "u", name: "Alice’s iPhone", kind: .iPhone, connection: .usb,
-                                   model: "iPhone14,8", percent: 76)
+        let nearby = try #require(
+            HotspotParser.parse(identifier: "n", name: "Alice’s iP", model: "iPhone14,8", batteryLife: 75))
+        let other = try #require(
+            HotspotParser.parse(identifier: "o", name: "Kid", model: "iPhone12,1", batteryLife: 40))
+        let cabled = DeviceBattery(
+            id: "u", name: "Alice’s iPhone", kind: .iPhone, connection: .usb,
+            model: "iPhone14,8", percent: 76)
         let merged = HotspotParser.merge(connected: [cabled], nearby: [nearby, other])
         #expect(merged.map(\.id) == ["u", "hotspot-o"])
     }
@@ -170,10 +186,11 @@ struct HotspotParserTests {
 @Suite("Last exact reading")
 struct LastExactReadingTests {
     static let t0 = utcDate(2026, 11, 15, 12, 40)
-    static let wifi = DeviceBattery(id: "udid-1", name: "Peter’s iP", kind: .iPhone, connection: .wifi,
-                                    model: "iPhone14,8", osVersion: "iOS 27.1", percent: 91, isCharging: true,
-                                    externalConnected: true, fullChargeCapacityMAh: 4012, designCapacityMAh: 4325,
-                                    cycleCount: 388, updatedAt: t0)
+    static let wifi = DeviceBattery(
+        id: "udid-1", name: "Peter’s iP", kind: .iPhone, connection: .wifi,
+        model: "iPhone14,8", osVersion: "iOS 27.1", percent: 91, isCharging: true,
+        externalConnected: true, fullChargeCapacityMAh: 4012, designCapacityMAh: 4325,
+        cycleCount: 388, updatedAt: t0)
 
     func hotspot(_ name: String = "Peter’s iP", percent: Int = 75) throws -> DeviceBattery {
         try #require(HotspotParser.parse(identifier: "h", name: name, model: "iPhone14,8", batteryLife: percent))
@@ -199,8 +216,8 @@ struct LastExactReadingTests {
         #expect(d.percent == 91)
         #expect(d.updatedAt == Self.t0)
         #expect(d.connection == nil)
-        #expect(!d.isCharging) // no charging claim for a device that isn't there
-        #expect(d.cycleCount == 388) // health stays
+        #expect(!d.isCharging)  // no charging claim for a device that isn't there
+        #expect(d.cycleCount == 388)  // health stays
 
         // Never read exactly: the hotspot level.
         let hotspotOnly = HotspotParser.merge(connected: [], remembered: [], nearby: [nearby])
@@ -224,7 +241,7 @@ struct LastExactReadingTests {
         // "Peter’s iP" is exactly 12 UTF-8 bytes: the advertisement may not have cut it.
         #expect("Peter’s iP".utf8.count == 12)
         let nearby = try hotspot()
-        #expect(nearby.name == "Peter’s iP…") // unknown on its own
+        #expect(nearby.name == "Peter’s iP…")  // unknown on its own
         let fixed = HotspotParser.merge(connected: [], nearby: [nearby], knownNames: ["Peter’s iP"])
         #expect(fixed.map(\.name) == ["Peter’s iP"])
         // A longer exact name means the advert really was cut.
@@ -277,7 +294,10 @@ struct LastExactReadingTests {
         let day: TimeInterval = 24 * 60 * 60
         // 29 days later: still shown.
         #expect(store.devices(now: Self.t0.addingTimeInterval(29 * day)).map(\.id) == ["udid-1"])
-        #expect(LastExactReadingStore(fileURL: url, now: Self.t0.addingTimeInterval(29 * day)).devices(now: Self.t0.addingTimeInterval(29 * day)).count == 1)
+        #expect(
+            LastExactReadingStore(fileURL: url, now: Self.t0.addingTimeInterval(29 * day)).devices(
+                now: Self.t0.addingTimeInterval(29 * day)
+            ).count == 1)
         // 31 days later: hidden, and dropped from disk on load.
         let later = Self.t0.addingTimeInterval(31 * day)
         #expect(store.devices(now: later).isEmpty)
@@ -294,9 +314,10 @@ struct LastExactReadingTests {
     }
 
     @Test func mobileReadCarriesItsTime() {
-        let d = MobileBatteryParser.parse(id: "u", lockdown: ["DeviceClass": "iPhone"],
-                                          battery: ["BatteryCurrentCapacity": 91], registry: nil,
-                                          connection: .wifi, updatedAt: Self.t0)
+        let d = MobileBatteryParser.parse(
+            id: "u", lockdown: ["DeviceClass": "iPhone"],
+            battery: ["BatteryCurrentCapacity": 91], registry: nil,
+            connection: .wifi, updatedAt: Self.t0)
         #expect(d.updatedAt == Self.t0)
         #expect(d.isExactReading)
     }
@@ -314,7 +335,7 @@ struct FreshnessTests {
     @Test func relativeWhenRecent() {
         #expect(fresh(0) == "just now")
         #expect(fresh(59) == "just now")
-        #expect(fresh(-30) == "just now") // clock skew
+        #expect(fresh(-30) == "just now")  // clock skew
         #expect(fresh(60) == "1 min ago")
         #expect(fresh(3 * 60 + 20) == "3 min ago")
         #expect(fresh(59 * 60 + 59) == "59 min ago")
@@ -326,7 +347,9 @@ struct FreshnessTests {
     }
 
     @Test func dateOnOtherDays() {
-        #expect(Fmt.freshness(utcDate(2026, 11, 14, 23, 50), now: now, calendar: utcCalendar, locale: locale) == "14 Nov")
-        #expect(Fmt.freshness(utcDate(2025, 12, 31, 9), now: now, calendar: utcCalendar, locale: locale) == "31 Dec 2025")
+        #expect(
+            Fmt.freshness(utcDate(2026, 11, 14, 23, 50), now: now, calendar: utcCalendar, locale: locale) == "14 Nov")
+        #expect(
+            Fmt.freshness(utcDate(2025, 12, 31, 9), now: now, calendar: utcCalendar, locale: locale) == "31 Dec 2025")
     }
 }

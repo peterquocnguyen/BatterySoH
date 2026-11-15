@@ -113,8 +113,10 @@ public enum EnergyModeParser {
 
     /// Splits `pmset` output into indented lines per known section header. Lines under
     /// unknown headers (e.g. "UPS Power:") are dropped.
-    static func sections(_ text: String,
-                         headerFor: (PowerSourceKind) -> String) -> [(PowerSourceKind, [String])] {
+    static func sections(
+        _ text: String,
+        headerFor: (PowerSourceKind) -> String
+    ) -> [(PowerSourceKind, [String])] {
         var out: [(PowerSourceKind, [String])] = []
         var current: PowerSourceKind?
         for raw in text.split(omittingEmptySubsequences: true, whereSeparator: \.isNewline) {
@@ -188,7 +190,7 @@ public enum EnergyModeControl {
         _ = script.executeAndReturnError(&errorInfo)
         guard let errorInfo else { return }
         let number = errorInfo[NSAppleScript.errorNumber] as? Int
-        if number == -128 { throw EnergyModeError.cancelledByUser } // userCanceledErr
+        if number == -128 { throw EnergyModeError.cancelledByUser }  // userCanceledErr
         let message = errorInfo[NSAppleScript.errorMessage] as? String
         throw EnergyModeError.failed(message ?? "Command failed (error \(number ?? 0)).")
     }

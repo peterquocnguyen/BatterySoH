@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import BatteryKit
 
 @Suite("BatteryParser: real fixture (AC, charge on hold)")
@@ -131,19 +132,20 @@ struct DerivedFixtureParseTests {
     /// Same encoding but arriving via an XML plist (how `sohstat --raw` fixtures store it).
     @Test func unsignedAmperageViaXMLPlist() throws {
         let xml = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0"><dict>
-          <key>Amperage</key><integer>18446744073709550616</integer>
-          <key>CurrentCapacity</key><integer>50</integer>
-        </dict></plist>
-        """
-        let dict = try #require(try PropertyListSerialization.propertyList(from: Data(xml.utf8), format: nil) as? [String: Any])
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0"><dict>
+              <key>Amperage</key><integer>18446744073709550616</integer>
+              <key>CurrentCapacity</key><integer>50</integer>
+            </dict></plist>
+            """
+        let dict = try #require(
+            try PropertyListSerialization.propertyList(from: Data(xml.utf8), format: nil) as? [String: Any])
         #expect(BatteryParser.parse(dict).amperageMA == -1000)
     }
 
     @Test func unsignedAmperageAsNSNumber() {
-        let s = BatteryParser.parse(["Amperage": NSNumber(value: UInt64(18446744073709550616))])
+        let s = BatteryParser.parse(["Amperage": NSNumber(value: UInt64(18_446_744_073_709_550_616))])
         #expect(s.amperageMA == -1000)
     }
 

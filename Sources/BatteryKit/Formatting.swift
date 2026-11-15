@@ -7,7 +7,8 @@ public enum Fmt {
     /// 47.2 → "47.2 W", 65 → "65 W"
     public static func watts(_ w: Double?, signed: Bool = false) -> String {
         guard let w else { return dash }
-        let body = abs(w) >= 10 && abs(w).truncatingRemainder(dividingBy: 1) == 0
+        let body =
+            abs(w) >= 10 && abs(w).truncatingRemainder(dividingBy: 1) == 0
             ? String(format: "%.0f", abs(w)) : String(format: "%.1f", abs(w))
         let sign = signed ? (w > 0 ? "+" : (w < 0 ? "−" : "")) : (w < 0 ? "−" : "")
         return "\(sign)\(body) W"
@@ -66,8 +67,10 @@ public enum Fmt {
     /// How current a reading is, for "Updated …" / "Last updated …" captions:
     /// under a minute "just now", under an hour "3 min ago", earlier today the time ("12:40"),
     /// another day the date ("14 Nov"; with the year when it isn't this year).
-    public static func freshness(_ date: Date, now: Date, calendar: Calendar = .current,
-                                 locale: Locale = .current) -> String {
+    public static func freshness(
+        _ date: Date, now: Date, calendar: Calendar = .current,
+        locale: Locale = .current
+    ) -> String {
         let age = now.timeIntervalSince(date)
         if age < 60 { return "just now" }
         if age < 3600 { return "\(Int(age / 60)) min ago" }
@@ -94,9 +97,9 @@ public enum Fmt {
     }
 }
 
-public extension BatterySnapshot {
+extension BatterySnapshot {
     /// Headline for the popover header.
-    var statusTitle: String {
+    public var statusTitle: String {
         switch powerState {
         case .charging: return "Charging"
         case .full: return "Fully charged"
@@ -107,7 +110,7 @@ public extension BatterySnapshot {
     }
 
     /// "full in 58 min" / "4h 8m left" / "not charging"
-    var timeSummary: String {
+    public var timeSummary: String {
         switch powerState {
         case .charging:
             return minutesToFull.map { "full in \(Fmt.duration(minutes: $0))" } ?? "calculating…"

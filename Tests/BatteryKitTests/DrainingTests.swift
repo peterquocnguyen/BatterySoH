@@ -1,5 +1,6 @@
-@testable import BatteryKit
 import Testing
+
+@testable import BatteryKit
 
 @Suite("Draining on charger")
 struct DrainingTests {
@@ -25,7 +26,7 @@ struct DrainingTests {
 
     @Test func smallDischargeOnACIsNotDraining() {
         var s = BatterySnapshot.sampleOnHold
-        s.amperageMA = -20 // 0.25 W: gauge noise
+        s.amperageMA = -20  // 0.25 W: gauge noise
         #expect(s.powerState == .onACNotCharging)
         #expect(s.isChargeOnHold)
     }

@@ -46,10 +46,12 @@ struct SettingsGeneralView: View {
             } header: {
                 Text("Menu Bar")
             } footer: {
-                Text("Precise percentage is the battery gauge's raw value (e.g. 79.0%); macOS rounds it differently. Charging watts show only while the battery charges; on battery the time left shows instead.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(
+                    "Precise percentage is the battery gauge's raw value (e.g. 79.0%); macOS rounds it differently. Charging watts show only while the battery charges; on battery the time left shows instead."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             Section("Display") {
@@ -68,9 +70,11 @@ struct SettingsGeneralView: View {
             }
 
             Section {
-                Toggle("Change Energy Mode without a password", isOn: Binding(
-                    get: { model.isPasswordFreeEnergyMode },
-                    set: { model.setPasswordFreeEnergyMode($0) }))
+                Toggle(
+                    "Change Energy Mode without a password",
+                    isOn: Binding(
+                        get: { model.isPasswordFreeEnergyMode },
+                        set: { model.setPasswordFreeEnergyMode($0) }))
                 if let error = model.controlError {
                     Text(error)
                         .font(.caption)
@@ -80,10 +84,12 @@ struct SettingsGeneralView: View {
             } header: {
                 Text("Energy Mode")
             } footer: {
-                Text("Adds a rule to \(PasswordFreeEnergyMode.sudoersPath) that lets only you run the six `pmset powermode` commands without a password. Turning it on or off asks for your password once.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(
+                    "Adds a rule to \(PasswordFreeEnergyMode.sudoersPath) that lets only you run the six `pmset powermode` commands without a password. Turning it on or off asks for your password once."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             Section("General") {
@@ -142,8 +148,9 @@ struct SettingsAboutView: View {
 
     var body: some View {
         AboutContent(info: .current(mac: model.mac)) {
-            AboutDiagnostics.report(info: .current(mac: model.mac), snapshot: model.snapshot,
-                                    lowPowerMode: model.isLowPowerMode, condition: model.macCondition)
+            AboutDiagnostics.report(
+                info: .current(mac: model.mac), snapshot: model.snapshot,
+                lowPowerMode: model.isLowPowerMode, condition: model.macCondition)
         }
         .frame(width: SettingsLayout.width)
         .fixedSize(horizontal: false, vertical: true)
@@ -151,7 +158,9 @@ struct SettingsAboutView: View {
 }
 
 enum SettingsRefreshOption: Double, CaseIterable, Identifiable {
-    case one = 1, two = 2, five = 5
+    case one = 1
+    case two = 2
+    case five = 5
 
     var id: Double { rawValue }
     var seconds: Double { rawValue }
@@ -163,9 +172,10 @@ enum SettingsRefreshOption: Double, CaseIterable, Identifiable {
 enum SettingsRenderEntries {
     @MainActor
     static func all(mac: MacInfo) -> [RenderEntry] {
-        let info = AboutInfo(version: AboutInfo.fallbackVersion, build: AboutInfo.fallbackBuild,
-                             copyright: AboutInfo.fallbackCopyright, osVersion: "macOS 27.2 (27C61)",
-                             mac: mac, icon: AboutInfo.appIcon())
+        let info = AboutInfo(
+            version: AboutInfo.fallbackVersion, build: AboutInfo.fallbackBuild,
+            copyright: AboutInfo.fallbackCopyright, osVersion: "macOS 27.2 (27C61)",
+            mac: mac, icon: AboutInfo.appIcon())
         return [
             RenderEntry("settings-about") {
                 AboutContent(info: info, diagnostics: { "" })

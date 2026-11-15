@@ -33,17 +33,20 @@ struct WindowSidebarSection: Identifiable, Equatable {
             isCharging: snapshot?.powerState == .charging, isFaded: false)
         let mobile = devices.filter(\.isMobileDevice).map(\.sidebarItem)
         let accessories = devices.filter { !$0.isMobileDevice }.map(\.sidebarItem)
-        return [WindowSidebarSection(title: nil, items: [thisMac]),
-                WindowSidebarSection(title: "iPhone & iPad", items: mobile),
-                WindowSidebarSection(title: "Accessories", items: accessories)]
-            .filter { !$0.items.isEmpty }
+        return [
+            WindowSidebarSection(title: nil, items: [thisMac]),
+            WindowSidebarSection(title: "iPhone & iPad", items: mobile),
+            WindowSidebarSection(title: "Accessories", items: accessories),
+        ]
+        .filter { !$0.items.isEmpty }
     }
 }
 
 extension DeviceBattery {
     fileprivate var sidebarItem: WindowSidebarItem {
-        WindowSidebarItem(id: id, name: name, symbol: symbol, percentText: percent.map(percentLabel),
-                          isCharging: isCharging && isLive, isFaded: !isLive)
+        WindowSidebarItem(
+            id: id, name: name, symbol: symbol, percentText: percent.map(percentLabel),
+            isCharging: isCharging && isLive, isFaded: !isLive)
     }
 }
 

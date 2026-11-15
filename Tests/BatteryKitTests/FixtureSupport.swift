@@ -1,4 +1,5 @@
 import Foundation
+
 @testable import BatteryKit
 
 /// Loads registry dumps from `Fixtures/` and builds derived variants in code.
@@ -37,8 +38,8 @@ enum Fixture {
         d["ExternalConnected"] = false
         d["AppleRawExternalConnected"] = false
         d["IsCharging"] = false
-        d["Amperage"] = UInt64(18446744073709550616) // == UInt64(bitPattern: -1000)
-        d["InstantAmperage"] = UInt64(18446744073709550616)
+        d["Amperage"] = UInt64(18_446_744_073_709_550_616)  // == UInt64(bitPattern: -1000)
+        d["InstantAmperage"] = UInt64(18_446_744_073_709_550_616)
         d["AvgTimeToEmpty"] = 248
         d["TimeRemaining"] = 248
         d["ChargerData"] = setting(d["ChargerData"], "NotChargingReason", to: 0)

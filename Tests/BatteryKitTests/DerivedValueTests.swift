@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import BatteryKit
 
 @Suite("BatterySnapshot derived values")
@@ -23,8 +24,10 @@ struct DerivedValueTests {
 
     @Test func healthNilWithoutDesignOrFull() {
         #expect(BatterySnapshot(chargePercent: 1, fullChargeCapacityMAh: 5000).healthPercent == nil)
-        #expect(BatterySnapshot(chargePercent: 1, fullChargeCapacityMAh: 5000, designCapacityMAh: 0).healthPercent == nil)
-        #expect(BatterySnapshot(chargePercent: 1, fullChargeCapacityMAh: 0, designCapacityMAh: 6000).healthPercent == nil)
+        #expect(
+            BatterySnapshot(chargePercent: 1, fullChargeCapacityMAh: 5000, designCapacityMAh: 0).healthPercent == nil)
+        #expect(
+            BatterySnapshot(chargePercent: 1, fullChargeCapacityMAh: 0, designCapacityMAh: 6000).healthPercent == nil)
     }
 
     // MARK: batteryPowerW
@@ -53,7 +56,7 @@ struct DerivedValueTests {
     }
 
     @Test func macLoadOnACFallsBackToPowerInMinusCharging() throws {
-        var s = BatterySnapshot.sampleCharging // 65 W in, +47.2 W into battery
+        var s = BatterySnapshot.sampleCharging  // 65 W in, +47.2 W into battery
         s.systemLoadW = nil
         let load = try #require(s.macLoadW)
         #expect(abs(load - (65 - 47.2004)) < 0.0001)
@@ -73,7 +76,7 @@ struct DerivedValueTests {
     @Test func macLoadOnACNeverNegative() {
         var s = BatterySnapshot.sampleCharging
         s.systemLoadW = nil
-        s.systemPowerInW = 10 // less than battery charge power
+        s.systemPowerInW = 10  // less than battery charge power
         #expect(s.macLoadW == 0)
     }
 
@@ -147,9 +150,12 @@ struct DerivedValueTests {
     }
 
     @Test func activeProfileMatchesByIndexNotPosition() {
-        let a = PowerAdapter(profiles: [PDProfile(index: 2, voltageMV: 9000, currentMA: 3000),
-                                        PDProfile(index: 5, voltageMV: 20000, currentMA: 5000)],
-                             activeProfileIndex: 5)
+        let a = PowerAdapter(
+            profiles: [
+                PDProfile(index: 2, voltageMV: 9000, currentMA: 3000),
+                PDProfile(index: 5, voltageMV: 20000, currentMA: 5000),
+            ],
+            activeProfileIndex: 5)
         #expect(a.activeProfile?.voltageMV == 20000)
         #expect(PowerAdapter(profiles: a.profiles, activeProfileIndex: 9).activeProfile == nil)
     }

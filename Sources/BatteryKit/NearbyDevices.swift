@@ -25,10 +25,11 @@ public final class NearbyHotspotBrowser: @unchecked Sendable {
     /// `onChange` is called on the main thread with the nearby devices.
     public init?(onChange: @escaping ([DeviceBattery]) -> Void) {
         guard dlopen("/System/Library/PrivateFrameworks/Sharing.framework/Sharing", RTLD_LAZY) != nil,
-              let cls = NSClassFromString("SFRemoteHotspotSession") as? NSObject.Type,
-              cls.instancesRespond(to: Sel.setDelegate),
-              cls.instancesRespond(to: Sel.startBrowsing),
-              cls.instancesRespond(to: Sel.stopBrowsing) else { return nil }
+            let cls = NSClassFromString("SFRemoteHotspotSession") as? NSObject.Type,
+            cls.instancesRespond(to: Sel.setDelegate),
+            cls.instancesRespond(to: Sel.startBrowsing),
+            cls.instancesRespond(to: Sel.stopBrowsing)
+        else { return nil }
         session = cls.init()
         delegate = Delegate(onChange: onChange)
         // The session holds its delegate weakly; `self.delegate` keeps it alive.
@@ -62,10 +63,11 @@ public final class NearbyHotspotBrowser: @unchecked Sendable {
                 func value(_ key: String) -> Any? {
                     d.responds(to: NSSelectorFromString(key)) ? d.value(forKey: key) : nil
                 }
-                return HotspotParser.parse(identifier: value("deviceIdentifier") as? String,
-                                           name: value("deviceName") as? String,
-                                           model: value("model") as? String,
-                                           batteryLife: value("batteryLife"))
+                return HotspotParser.parse(
+                    identifier: value("deviceIdentifier") as? String,
+                    name: value("deviceName") as? String,
+                    model: value("model") as? String,
+                    batteryLife: value("batteryLife"))
             }
             let onChange = self.onChange
             DispatchQueue.main.async { onChange(devices) }
@@ -88,15 +90,17 @@ public enum HotspotParser {
         // 0 is what a device advertises before it knows its level; a phone at 0 % is off.
         let percent = BatteryParser.int(batteryLife).flatMap { (1...100).contains($0) ? $0 : nil }
         guard let id = BatteryParser.string(identifier) ?? model.map({ "\($0)-\(display)" }) else { return nil }
-        return DeviceBattery(id: "hotspot-\(id)", name: display, kind: kind, connection: .nearby,
-                             model: model, percent: percent,
-                             note: approximateNote(kind: kind), isApproximate: true)
+        return DeviceBattery(
+            id: "hotspot-\(id)", name: display, kind: kind, connection: .nearby,
+            model: model, percent: percent,
+            note: approximateNote(kind: kind), isApproximate: true)
     }
 
     /// Caption for an approximate (advertised) level.
     public static func approximateNote(kind: DeviceBattery.Kind) -> String {
         let device = kind == .iPad ? "iPad" : (kind == .iPhone ? "iPhone" : "device")
-        return "Last level the \(device) shared over Personal Hotspot. It can lag well behind the \(device == "iPhone" ? "phone" : device)."
+        return
+            "Last level the \(device) shared over Personal Hotspot. It can lag well behind the \(device == "iPhone" ? "phone" : device)."
     }
 
     /// The part of a device name an Instant Hotspot advertisement carries: at most
@@ -118,7 +122,8 @@ public enum HotspotParser {
 
     /// Keeps `updatedAt` from the previous list while a device's advertised percent is
     /// unchanged; stamps `now` when the device or its percent is new (so it is "first seen").
-    public static func carryUpdatedAt(previous: [DeviceBattery], current: [DeviceBattery], now: Date) -> [DeviceBattery] {
+    public static func carryUpdatedAt(previous: [DeviceBattery], current: [DeviceBattery], now: Date) -> [DeviceBattery]
+    {
         current.map { device in
             var d = device
             if let old = previous.first(where: { $0.id == d.id }), old.percent == d.percent, let since = old.updatedAt {
@@ -138,13 +143,16 @@ public enum HotspotParser {
     /// dropped when a connected or remembered device has the same model and a name that starts
     /// with the advertised name stem. `knownNames` are other exact device names (connected and
     /// remembered names are always included) used only to fix the "…" on an advertised name that wasn't cut after all.
-    public static func merge(connected: [DeviceBattery], remembered: [DeviceBattery] = [],
-                             nearby: [DeviceBattery], knownNames: [String] = []) -> [DeviceBattery] {
+    public static func merge(
+        connected: [DeviceBattery], remembered: [DeviceBattery] = [],
+        nearby: [DeviceBattery], knownNames: [String] = []
+    ) -> [DeviceBattery] {
         let connectedIDs = Set(connected.map(\.id))
         let lastKnown = remembered.filter { !connectedIDs.contains($0.id) && $0.isExactReading }.map(\.lastKnown)
         let exact = connected + lastKnown
         let names = Set(exact.map(\.name) + knownNames)
-        let extra = nearby
+        let extra =
+            nearby
             .filter { n in
                 let stem = advertisedStem(n.name)
                 return !exact.contains { $0.model == n.model && $0.name.hasPrefix(stem) }

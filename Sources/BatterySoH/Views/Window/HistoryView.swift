@@ -83,22 +83,30 @@ struct HistoryChart: View {
     var body: some View {
         let domain = yDomain
         Chart(samples) { sample in
-            AreaMark(x: .value("Date", sample.date, unit: .day),
-                     yStart: .value("Floor", domain.lowerBound),
-                     yEnd: .value("Health", sample.healthPercent))
-                .interpolationMethod(.monotone)
-                .foregroundStyle(.linearGradient(colors: [Color.green.opacity(0.28), Color.green.opacity(0.02)],
-                                                 startPoint: .top, endPoint: .bottom))
-            LineMark(x: .value("Date", sample.date, unit: .day),
-                     y: .value("Health", sample.healthPercent))
-                .interpolationMethod(.monotone)
-                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                .foregroundStyle(Color.green)
+            AreaMark(
+                x: .value("Date", sample.date, unit: .day),
+                yStart: .value("Floor", domain.lowerBound),
+                yEnd: .value("Health", sample.healthPercent)
+            )
+            .interpolationMethod(.monotone)
+            .foregroundStyle(
+                .linearGradient(
+                    colors: [Color.green.opacity(0.28), Color.green.opacity(0.02)],
+                    startPoint: .top, endPoint: .bottom))
+            LineMark(
+                x: .value("Date", sample.date, unit: .day),
+                y: .value("Health", sample.healthPercent)
+            )
+            .interpolationMethod(.monotone)
+            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+            .foregroundStyle(Color.green)
             if samples.count <= 24 {
-                PointMark(x: .value("Date", sample.date, unit: .day),
-                          y: .value("Health", sample.healthPercent))
-                    .symbolSize(samples.count == 1 ? 40 : 14)
-                    .foregroundStyle(Color.green)
+                PointMark(
+                    x: .value("Date", sample.date, unit: .day),
+                    y: .value("Health", sample.healthPercent)
+                )
+                .symbolSize(samples.count == 1 ? 40 : 14)
+                .foregroundStyle(Color.green)
             }
         }
         .chartYScale(domain: domain)
@@ -164,12 +172,14 @@ struct HistoryMonthTable: View {
                     .padding(.vertical, 7)
                 WindowHairline()
                 ForEach(Array(months.enumerated()), id: \.element.id) { index, month in
-                    row(month: month.period,
+                    row(
+                        month: month.period,
                         health: Fmt.percent(month.averageHealthPercent, decimals: 1),
-                        cycles: "\(month.maxCycleCount)")
-                        .monospacedDigit()
-                        .padding(.vertical, 5)
-                        .background(index.isMultiple(of: 2) ? Color.clear : Color.primary.opacity(0.035))
+                        cycles: "\(month.maxCycleCount)"
+                    )
+                    .monospacedDigit()
+                    .padding(.vertical, 5)
+                    .background(index.isMultiple(of: 2) ? Color.clear : Color.primary.opacity(0.035))
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))

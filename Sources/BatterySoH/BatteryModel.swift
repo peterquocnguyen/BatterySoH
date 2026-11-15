@@ -20,8 +20,9 @@ final class BatteryModel {
     /// Other devices: iPhone / iPad (exact connected reads, then the last exact reading of
     /// disconnected ones, then hotspot-only ones), then Bluetooth / USB accessories.
     var devices: [DeviceBattery] {
-        HotspotParser.merge(connected: mobileDevices, remembered: rememberedDevices,
-                            nearby: nearbyDevices) + accessories
+        HotspotParser.merge(
+            connected: mobileDevices, remembered: rememberedDevices,
+            nearby: nearbyDevices) + accessories
     }
     private(set) var accessories: [DeviceBattery] = []
     private(set) var mobileDevices: [DeviceBattery] = []
@@ -88,11 +89,13 @@ final class BatteryModel {
     @ObservationIgnored private var errorClearTask: Task<Void, Never>?
 
     /// Static model for previews and `--render`: no timers, no disk writes, no pmset/PowerUI.
-    init(previewSnapshot: BatterySnapshot?, history: [HistorySample],
-         energyStatus: EnergyModeStatus? = nil, chargeLimit: ChargeLimitStatus? = nil,
-         chargeToFullRequested: Bool = false, controlError: String? = nil,
-         devices: [DeviceBattery] = [], mac: MacInfo = .current(),
-         macReportedHealth: MacReportedHealth? = nil) {
+    init(
+        previewSnapshot: BatterySnapshot?, history: [HistorySample],
+        energyStatus: EnergyModeStatus? = nil, chargeLimit: ChargeLimitStatus? = nil,
+        chargeToFullRequested: Bool = false, controlError: String? = nil,
+        devices: [DeviceBattery] = [], mac: MacInfo = .current(),
+        macReportedHealth: MacReportedHealth? = nil
+    ) {
         isStatic = true
         self.macReportedHealth = macReportedHealth
         self.mac = mac
@@ -127,11 +130,13 @@ final class BatteryModel {
         }
         slowTimer?.tolerance = 60
         terminateObserver = NotificationCenter.default.addObserver(
-            forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
+            forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+        ) { [weak self] _ in
             MainActor.assumeIsolated { try? self?.lastExactStore?.flush() }
         }
         lowPowerObserver = NotificationCenter.default.addObserver(
-            forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main) { [weak self] _ in
+            forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main
+        ) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
                 self?.refreshControls()
@@ -212,7 +217,8 @@ final class BatteryModel {
     /// the phone a chance to re-advertise. Stop + start about once a minute while visible.
     private func restartNearbyBrowsingIfDue() {
         guard let started = hotspotStartedAt, let hotspotBrowser,
-              Date().timeIntervalSince(started) >= Self.hotspotRestartInterval else { return }
+            Date().timeIntervalSince(started) >= Self.hotspotRestartInterval
+        else { return }
         hotspotBrowser.stop()
         hotspotBrowser.start()
         hotspotStartedAt = Date()
@@ -280,8 +286,10 @@ final class BatteryModel {
         let needCapabilities = currentPowerSource.map { capabilityCache[$0] == nil } ?? true
         Task { [weak self] in
             let (energy, limit, passwordFree) = await Task.detached(priority: .utility) {
-                (EnergyModeControl.read(includeCapabilities: needCapabilities), ChargeLimit.shared.status(),
-                 PasswordFreeEnergyMode.isInstalled())
+                (
+                    EnergyModeControl.read(includeCapabilities: needCapabilities), ChargeLimit.shared.status(),
+                    PasswordFreeEnergyMode.isInstalled()
+                )
             }.value
             guard let self else { return }
             if passwordFree != self.isPasswordFreeEnergyMode { self.isPasswordFreeEnergyMode = passwordFree }
@@ -419,8 +427,11 @@ final class BatteryModel {
         guard let sample = HistorySample(snapshot: s) else { return }
         // Only write once per day unless cycle count changed, to avoid disk churn.
         if let last = history.last,
-           Calendar.current.isDate(last.date, inSameDayAs: sample.date),
-           last.cycleCount == sample.cycleCount { return }
+            Calendar.current.isDate(last.date, inSameDayAs: sample.date),
+            last.cycleCount == sample.cycleCount
+        {
+            return
+        }
         if (try? store.record(sample)) == true { history = store.samples }
     }
 }

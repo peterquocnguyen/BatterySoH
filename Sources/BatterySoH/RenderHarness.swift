@@ -28,8 +28,10 @@ enum RenderHarness {
 
         let entries = PopoverRenderEntries.all() + WindowRenderEntries.all()
         for entry in entries {
-            for (suffix, scheme, appearance) in [("light", ColorScheme.light, NSAppearance.Name.aqua),
-                                                 ("dark", ColorScheme.dark, NSAppearance.Name.darkAqua)] {
+            for (suffix, scheme, appearance) in [
+                ("light", ColorScheme.light, NSAppearance.Name.aqua),
+                ("dark", ColorScheme.dark, NSAppearance.Name.darkAqua),
+            ] {
                 NSAppearance(named: appearance)?.performAsCurrentDrawingAppearance {
                     // Background inside the colour-scheme override so it resolves dark too.
                     let content = entry.view

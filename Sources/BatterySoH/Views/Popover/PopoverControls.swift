@@ -68,8 +68,10 @@ struct PopoverEnergyModeSection: View {
             }
             HStack(spacing: 6) {
                 ForEach(model.supportedEnergyModes) { mode in
-                    PopoverEnergyModeButton(mode: mode, isSelected: mode == selected,
-                                            isBusy: model.isChangingEnergyMode) {
+                    PopoverEnergyModeButton(
+                        mode: mode, isSelected: mode == selected,
+                        isBusy: model.isChangingEnergyMode
+                    ) {
                         Task { await model.setEnergyMode(mode) }
                     }
                 }
@@ -84,7 +86,9 @@ struct PopoverEnergyModeSection: View {
                     Button("Set up once…") { model.setPasswordFreeEnergyMode(true) }
                         .buttonStyle(.plain)
                         .foregroundStyle(Color.accentColor)
-                        .help("Installs a sudo rule that allows only the Energy Mode pmset commands without a password. You enter your password once. Remove it in Settings.")
+                        .help(
+                            "Installs a sudo rule that allows only the Energy Mode pmset commands without a password. You enter your password once. Remove it in Settings."
+                        )
                 }
                 .font(.system(size: 11.5))
             }
@@ -157,9 +161,11 @@ struct PopoverEnergyModeButton: View {
         .disabled(isBusy)
         .opacity(isBusy && !isSelected ? 0.55 : 1)
         .onHover { hovering = $0 }
-        .help(isSelected
-              ? "\(mode.title) is on."
-              : "Switch to \(mode.title).")
+        .help(
+            isSelected
+                ? "\(mode.title) is on."
+                : "Switch to \(mode.title)."
+        )
         .accessibilityLabel("Energy Mode \(mode.title)")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }

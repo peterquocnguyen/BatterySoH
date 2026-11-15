@@ -128,9 +128,9 @@ struct PopoverDisplay {
         let load = snapshot.macLoadW.map { Fmt.watts($0.rounded()) }
         let charger = (snapshot.adapter?.watts.map(Double.init) ?? powerInW).map { Fmt.watts($0.rounded()) }
         switch (load, charger) {
-        case let (load?, charger?):
+        case (let load?, let charger?):
             return "The Mac uses about \(load) — more than the charger's \(charger), so the battery drains anyway."
-        case let (load?, nil):
+        case (let load?, nil):
             return "The Mac uses about \(load) — more than the charger supplies, so the battery drains anyway."
         default:
             return "The Mac uses more power than the charger supplies, so the battery drains anyway."

@@ -119,8 +119,11 @@ enum MenuBarGlyph {
         let path = CGMutablePath()
         path.move(to: CGPoint(x: nub.minX, y: nub.minY))
         path.addLine(to: CGPoint(x: nub.maxX - r, y: nub.minY))
-        path.addArc(tangent1End: CGPoint(x: nub.maxX, y: nub.minY), tangent2End: CGPoint(x: nub.maxX, y: nub.midY), radius: r)
-        path.addArc(tangent1End: CGPoint(x: nub.maxX, y: nub.maxY), tangent2End: CGPoint(x: nub.maxX - r, y: nub.maxY), radius: r)
+        path.addArc(
+            tangent1End: CGPoint(x: nub.maxX, y: nub.minY), tangent2End: CGPoint(x: nub.maxX, y: nub.midY), radius: r)
+        path.addArc(
+            tangent1End: CGPoint(x: nub.maxX, y: nub.maxY), tangent2End: CGPoint(x: nub.maxX - r, y: nub.maxY),
+            radius: r)
         path.addLine(to: CGPoint(x: nub.minX, y: nub.maxY))
         path.closeSubpath()
         return path
@@ -144,10 +147,12 @@ enum MenuBarGlyph {
                 // Shrink only if needed ("100" + bolt).
                 for fontSize in stride(from: CGFloat(10), through: 7.5, by: -0.5) {
                     let font = NSFont.systemFont(ofSize: fontSize, weight: .semibold)
-                    let attributed = NSAttributedString(string: text, attributes: [
-                        .font: font,
-                        NSAttributedString.Key(kCTForegroundColorFromContextAttributeName as String): true,
-                    ])
+                    let attributed = NSAttributedString(
+                        string: text,
+                        attributes: [
+                            .font: font,
+                            NSAttributedString.Key(kCTForegroundColorFromContextAttributeName as String): true,
+                        ])
                     let candidate = CTLineCreateWithAttributedString(attributed)
                     let width = CGFloat(CTLineGetTypographicBounds(candidate, nil, nil, nil))
                     line = candidate
@@ -160,8 +165,9 @@ enum MenuBarGlyph {
             origin = MenuBarGlyph.pill.midX - total / 2
             if style.showsBolt {
                 let x = origin + total - boltWidth
-                bolt = CGRect(x: x, y: MenuBarGlyph.pill.midY - Self.boltSize.height / 2,
-                              width: Self.boltSize.width, height: Self.boltSize.height)
+                bolt = CGRect(
+                    x: x, y: MenuBarGlyph.pill.midY - Self.boltSize.height / 2,
+                    width: Self.boltSize.width, height: Self.boltSize.height)
             }
         }
 
@@ -170,14 +176,19 @@ enum MenuBarGlyph {
             if let line {
                 ctx.textMatrix = .identity
                 // Optical centre: digits sit on the baseline, so centre their cap height.
-                ctx.textPosition = CGPoint(x: origin, y: (MenuBarGlyph.pill.midY - capHeight / 2).rounded(.toNearestOrEven))
+                ctx.textPosition = CGPoint(
+                    x: origin, y: (MenuBarGlyph.pill.midY - capHeight / 2).rounded(.toNearestOrEven))
                 CTLineDraw(line, ctx)
             }
             if let bolt {
-                let p = { (x: CGFloat, y: CGFloat) in CGPoint(x: bolt.minX + x * bolt.width, y: bolt.minY + y * bolt.height) }
+                let p = { (x: CGFloat, y: CGFloat) in
+                    CGPoint(x: bolt.minX + x * bolt.width, y: bolt.minY + y * bolt.height)
+                }
                 let path = CGMutablePath()
-                path.addLines(between: [p(0.70, 1.00), p(0.04, 0.43), p(0.46, 0.43),
-                                        p(0.30, 0.00), p(0.96, 0.58), p(0.54, 0.58)])
+                path.addLines(between: [
+                    p(0.70, 1.00), p(0.04, 0.43), p(0.46, 0.43),
+                    p(0.30, 0.00), p(0.96, 0.58), p(0.54, 0.58),
+                ])
                 path.closeSubpath()
                 ctx.addPath(path)
                 ctx.fillPath()

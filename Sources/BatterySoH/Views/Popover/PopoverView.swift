@@ -16,13 +16,17 @@ struct MenuBarLabel: View {
 
     var body: some View {
         let snapshot = model.snapshot
-        let title = Self.title(for: snapshot, showPercent: showPercent, showTime: showTime, showWatts: showWatts,
-                               precise: precisePercent)
+        let title = Self.title(
+            for: snapshot, showPercent: showPercent, showTime: showTime, showWatts: showWatts,
+            precise: precisePercent)
         HStack(spacing: 4) {
-            Image(nsImage: MenuBarGlyph.image(Self.glyphStyle(for: snapshot, showPercent: showPercent,
-                                                              precise: precisePercent,
-                                                              lowPower: model.isLowPowerMode,
-                                                              darkMenuBar: menuBarScheme == .dark)))
+            Image(
+                nsImage: MenuBarGlyph.image(
+                    Self.glyphStyle(
+                        for: snapshot, showPercent: showPercent,
+                        precise: precisePercent,
+                        lowPower: model.isLowPowerMode,
+                        darkMenuBar: menuBarScheme == .dark)))
             if !title.isEmpty {
                 Text(title).monospacedDigit()
             }
@@ -38,22 +42,30 @@ struct MenuBarLabel: View {
     }
 
     /// Percent inside the glyph unless hidden or replaced by the precise text; bolt on power.
-    static func glyphStyle(for snapshot: BatterySnapshot?, showPercent: Bool, precise: Bool,
-                           lowPower: Bool = false, darkMenuBar: Bool = false,
-                           pointScale: CGFloat = 1) -> MenuBarGlyph.Style {
-        guard let snapshot else { return MenuBarGlyph.Style(percentText: nil, percent: 0, showsBolt: false,
-                                                             pointScale: pointScale) }
-        return MenuBarGlyph.Style(percentText: showPercent && !precise ? "\(snapshot.chargePercent)" : nil,
-                                  percent: snapshot.chargePercent,
-                                  showsBolt: snapshot.externalConnected,
-                                  lowPower: lowPower, darkMenuBar: lowPower && darkMenuBar,
-                                  pointScale: pointScale)
+    static func glyphStyle(
+        for snapshot: BatterySnapshot?, showPercent: Bool, precise: Bool,
+        lowPower: Bool = false, darkMenuBar: Bool = false,
+        pointScale: CGFloat = 1
+    ) -> MenuBarGlyph.Style {
+        guard let snapshot else {
+            return MenuBarGlyph.Style(
+                percentText: nil, percent: 0, showsBolt: false,
+                pointScale: pointScale)
+        }
+        return MenuBarGlyph.Style(
+            percentText: showPercent && !precise ? "\(snapshot.chargePercent)" : nil,
+            percent: snapshot.chargePercent,
+            showsBolt: snapshot.externalConnected,
+            lowPower: lowPower, darkMenuBar: lowPower && darkMenuBar,
+            pointScale: pointScale)
     }
 
     /// Text beside the glyph: "4h 8m", "+47.2 W", or with `precise` "79.0%" / "79.0% (4h 8m)".
     /// The whole percent lives inside the glyph, so it never appears here.
-    static func title(for snapshot: BatterySnapshot?, showPercent: Bool, showTime: Bool, showWatts: Bool,
-                      precise: Bool = false) -> String {
+    static func title(
+        for snapshot: BatterySnapshot?, showPercent: Bool, showTime: Bool, showWatts: Bool,
+        precise: Bool = false
+    ) -> String {
         guard let snapshot else { return "" }
         var extra: String?
         // Watts only while charging; on battery (or draining on a charger) the time left is
@@ -81,8 +93,10 @@ struct PopoverView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let snapshot = model.snapshot {
-                content(PopoverDisplay(snapshot: snapshot, temperatureUnit: temperatureUnit,
-                                       chargeLimit: model.chargeLimit, condition: model.macCondition))
+                content(
+                    PopoverDisplay(
+                        snapshot: snapshot, temperatureUnit: temperatureUnit,
+                        chargeLimit: model.chargeLimit, condition: model.macCondition))
             } else {
                 PopoverNoBattery()
                     .padding(.bottom, 16)
@@ -149,12 +163,16 @@ struct PopoverView: View {
 
 enum PopoverRenderEntries {
     /// Static F8 state per sample (the harness never runs pmset or PowerUI).
-    static let fullCaps: [PowerSourceKind: Set<EnergyMode>] = [.ac: [.automatic, .lowPower, .highPower],
-                                                              .battery: [.automatic, .lowPower]]
-    static let limitHolding = ChargeLimitStatus(isEnabled: true, limitPercent: 80, isHoldingCharge: true,
-                                                overrideAllowed: true)
-    static let limitIdle = ChargeLimitStatus(isEnabled: true, limitPercent: 80, isHoldingCharge: false,
-                                             overrideAllowed: true)
+    static let fullCaps: [PowerSourceKind: Set<EnergyMode>] = [
+        .ac: [.automatic, .lowPower, .highPower],
+        .battery: [.automatic, .lowPower],
+    ]
+    static let limitHolding = ChargeLimitStatus(
+        isEnabled: true, limitPercent: 80, isHoldingCharge: true,
+        overrideAllowed: true)
+    static let limitIdle = ChargeLimitStatus(
+        isEnabled: true, limitPercent: 80, isHoldingCharge: false,
+        overrideAllowed: true)
 
     @MainActor
     static func model(_ name: String, _ snapshot: BatterySnapshot?) -> BatteryModel {
@@ -174,8 +192,9 @@ enum PopoverRenderEntries {
             energy = EnergyModeStatus(modes: [.battery: .automatic, .ac: .automatic], capabilities: fullCaps)
             limit = limitIdle
         }
-        return BatteryModel(previewSnapshot: snapshot, history: [], energyStatus: energy, chargeLimit: limit,
-                            macReportedHealth: .sampleGood)
+        return BatteryModel(
+            previewSnapshot: snapshot, history: [], energyStatus: energy, chargeLimit: limit,
+            macReportedHealth: .sampleGood)
     }
 
     @MainActor
@@ -188,50 +207,64 @@ enum PopoverRenderEntries {
                     .popoverRenderBackground()
             }
         }
-        entries.append(RenderEntry("popover-on-hold-charging-to-full") {
-            PopoverView()
-                .environment(BatteryModel(
-                    previewSnapshot: .sampleOnHold, history: [],
-                    energyStatus: EnergyModeStatus(modes: [.ac: .highPower, .battery: .automatic], capabilities: fullCaps),
-                    chargeLimit: limitHolding, chargeToFullRequested: true))
-                .environment(\.popoverStaticFrame, true)
-                .popoverRenderBackground()
-        })
-        entries.append(RenderEntry("popover-controls-error-no-high-power") {
-            PopoverView()
-                .environment(BatteryModel(
-                    previewSnapshot: .sampleOnBattery, history: [],
-                    energyStatus: EnergyModeStatus(modes: [.battery: .automatic],
-                                                   capabilities: [.battery: [.automatic, .lowPower]]),
-                    chargeLimit: nil,
-                    controlError: "Couldn't change Energy Mode: pmset failed (error 1)."))
-                .environment(\.popoverStaticFrame, true)
-                .popoverRenderBackground()
-        })
-        entries.append(RenderEntry("popover-service-recommended") {
-            PopoverView()
-                .environment(BatteryModel(previewSnapshot: .sampleWorn, history: [],
-                                          macReportedHealth: .sampleService))
-                .environment(\.popoverStaticFrame, true)
-                .popoverRenderBackground()
-        })
-        entries.append(RenderEntry("popover-no-battery") {
-            PopoverView()
-                .environment(BatteryModel(previewSnapshot: nil, history: []))
-                .environment(\.popoverStaticFrame, true)
-                .popoverRenderBackground()
-        })
-        entries.append(RenderEntry("popover-menubar-labels") {
-            PopoverMenuBarLabelGallery().popoverRenderBackground()
-        })
+        entries.append(
+            RenderEntry("popover-on-hold-charging-to-full") {
+                PopoverView()
+                    .environment(
+                        BatteryModel(
+                            previewSnapshot: .sampleOnHold, history: [],
+                            energyStatus: EnergyModeStatus(
+                                modes: [.ac: .highPower, .battery: .automatic], capabilities: fullCaps),
+                            chargeLimit: limitHolding, chargeToFullRequested: true)
+                    )
+                    .environment(\.popoverStaticFrame, true)
+                    .popoverRenderBackground()
+            })
+        entries.append(
+            RenderEntry("popover-controls-error-no-high-power") {
+                PopoverView()
+                    .environment(
+                        BatteryModel(
+                            previewSnapshot: .sampleOnBattery, history: [],
+                            energyStatus: EnergyModeStatus(
+                                modes: [.battery: .automatic],
+                                capabilities: [.battery: [.automatic, .lowPower]]),
+                            chargeLimit: nil,
+                            controlError: "Couldn't change Energy Mode: pmset failed (error 1).")
+                    )
+                    .environment(\.popoverStaticFrame, true)
+                    .popoverRenderBackground()
+            })
+        entries.append(
+            RenderEntry("popover-service-recommended") {
+                PopoverView()
+                    .environment(
+                        BatteryModel(
+                            previewSnapshot: .sampleWorn, history: [],
+                            macReportedHealth: .sampleService)
+                    )
+                    .environment(\.popoverStaticFrame, true)
+                    .popoverRenderBackground()
+            })
+        entries.append(
+            RenderEntry("popover-no-battery") {
+                PopoverView()
+                    .environment(BatteryModel(previewSnapshot: nil, history: []))
+                    .environment(\.popoverStaticFrame, true)
+                    .popoverRenderBackground()
+            })
+        entries.append(
+            RenderEntry("popover-menubar-labels") {
+                PopoverMenuBarLabelGallery().popoverRenderBackground()
+            })
         return entries
     }
 }
 
-private extension View {
+extension View {
     /// The harness applies its window background outside its colour-scheme override, so it
     /// always resolves light. Paint our own inside the override so dark renders are honest.
-    func popoverRenderBackground() -> some View {
+    fileprivate func popoverRenderBackground() -> some View {
         background(Color(nsColor: .windowBackgroundColor))
     }
 }
@@ -309,9 +342,10 @@ private struct PopoverMenuBarLabelGallery: View {
     }
 
     private func strip(_ variant: Variant, scheme: ColorScheme) -> some View {
-        let style = MenuBarLabel.glyphStyle(for: variant.snapshot, showPercent: variant.showPercent,
-                                            precise: false, lowPower: variant.lowPower,
-                                            darkMenuBar: scheme == .dark, pointScale: 3)
+        let style = MenuBarLabel.glyphStyle(
+            for: variant.snapshot, showPercent: variant.showPercent,
+            precise: false, lowPower: variant.lowPower,
+            darkMenuBar: scheme == .dark, pointScale: 3)
         return Image(nsImage: MenuBarGlyph.image(style))
             .renderingMode(variant.lowPower ? .original : .template)
             .foregroundStyle(scheme == .light ? Color.black : Color.white)
@@ -333,12 +367,17 @@ private struct PopoverMenuBarLabelGallery: View {
     }
 
     private func label(_ snapshot: BatterySnapshot?, _ s: Settings) -> some View {
-        let title = MenuBarLabel.title(for: snapshot, showPercent: s.percent, showTime: s.time,
-                                       showWatts: s.watts, precise: s.precise)
+        let title = MenuBarLabel.title(
+            for: snapshot, showPercent: s.percent, showTime: s.time,
+            showWatts: s.watts, precise: s.precise)
         return HStack(spacing: 4) {
-            Image(nsImage: MenuBarGlyph.image(MenuBarLabel.glyphStyle(for: snapshot, showPercent: s.percent,
-                                                                      precise: s.precise)))
-                .renderingMode(.template)
+            Image(
+                nsImage: MenuBarGlyph.image(
+                    MenuBarLabel.glyphStyle(
+                        for: snapshot, showPercent: s.percent,
+                        precise: s.precise))
+            )
+            .renderingMode(.template)
             if !title.isEmpty {
                 Text(title).font(.system(size: 13)).monospacedDigit()
             }
@@ -346,8 +385,8 @@ private struct PopoverMenuBarLabelGallery: View {
     }
 }
 
-private extension BatterySnapshot {
-    func with(percent: Int) -> BatterySnapshot {
+extension BatterySnapshot {
+    fileprivate func with(percent: Int) -> BatterySnapshot {
         var copy = self
         copy.chargePercent = percent
         return copy

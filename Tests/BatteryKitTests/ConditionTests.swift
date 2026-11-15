@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import BatteryKit
 
 @Suite("Battery condition (F11)")
@@ -18,7 +19,9 @@ struct ConditionTests {
 
     // MARK: Estimate
 
-    @Test(arguments: [(80, BatteryCondition.Status.normal), (79, .serviceRecommended), (100, .normal), (40, .serviceRecommended)])
+    @Test(arguments: [
+        (80, BatteryCondition.Status.normal), (79, .serviceRecommended), (100, .normal), (40, .serviceRecommended),
+    ])
     func serviceLevelIs80(_ capacity: Int, _ status: BatteryCondition.Status) {
         #expect(BatteryCondition.estimate(maximumCapacityPercent: capacity)?.status == status)
     }
@@ -36,11 +39,13 @@ struct ConditionTests {
     @Test func peakPerformanceOnlyForIPhone() {
         #expect(BatteryCondition.estimate(maximumCapacityPercent: 90)?.peakPerformance == nil)
         #expect(BatteryCondition.estimate(maximumCapacityPercent: 90, isIPhone: true)?.peakPerformance == .normal)
-        #expect(BatteryCondition.estimate(maximumCapacityPercent: 90, unexpectedShutdown: true, isIPhone: true)?
-            .peakPerformance == .unexpectedShutdown)
+        #expect(
+            BatteryCondition.estimate(maximumCapacityPercent: 90, unexpectedShutdown: true, isIPhone: true)?
+                .peakPerformance == .unexpectedShutdown)
         // A worn battery wins over the shutdown record.
-        #expect(BatteryCondition.estimate(maximumCapacityPercent: 74, unexpectedShutdown: true, isIPhone: true)?
-            .peakPerformance == .worn)
+        #expect(
+            BatteryCondition.estimate(maximumCapacityPercent: 74, unexpectedShutdown: true, isIPhone: true)?
+                .peakPerformance == .worn)
     }
 
     @Test func pointsAboveServiceLevel() {
@@ -51,24 +56,27 @@ struct ConditionTests {
     // MARK: Mac
 
     @Test func macPrefersMacOSVerdict() {
-        let c = BatteryCondition.mac(.sampleOnHold, reported: MacReportedHealth(health: "Good", maximumCapacityPercent: 91))
+        let c = BatteryCondition.mac(
+            .sampleOnHold, reported: MacReportedHealth(health: "Good", maximumCapacityPercent: 91))
         #expect(c == BatteryCondition(status: .normal, source: .macOS, maximumCapacityPercent: 91))
     }
 
     @Test func macServiceFromMacOS() {
         // macOS says service even though our own math would say normal.
-        let c = BatteryCondition.mac(.sampleOnHold, reported: MacReportedHealth(health: "Check Battery", maximumCapacityPercent: nil))
+        let c = BatteryCondition.mac(
+            .sampleOnHold, reported: MacReportedHealth(health: "Check Battery", maximumCapacityPercent: nil))
         #expect(c?.status == .serviceRecommended)
         #expect(c?.source == .macOS)
-        #expect(c?.maximumCapacityPercent == 91) // 5,748 of 6,249 mAh
+        #expect(c?.maximumCapacityPercent == 91)  // 5,748 of 6,249 mAh
     }
 
     @Test func macEstimatesWithoutReport() {
         #expect(BatteryCondition.mac(.sampleOnHold, reported: nil)?.source == .estimated)
         #expect(BatteryCondition.mac(.sampleWorn, reported: nil)?.status == .serviceRecommended)
         // A report without a condition is no verdict.
-        #expect(BatteryCondition.mac(.sampleWorn, reported: MacReportedHealth(health: nil, maximumCapacityPercent: 77))?
-            .source == .estimated)
+        #expect(
+            BatteryCondition.mac(.sampleWorn, reported: MacReportedHealth(health: nil, maximumCapacityPercent: 77))?
+                .source == .estimated)
     }
 
     @Test func macPermanentFailureFromGauge() {
@@ -88,12 +96,12 @@ struct ConditionTests {
 
     /// Shape of `system_profiler SPPowerDataType -json` on a MacBook Pro (trimmed, no serial).
     static let profilerJSON = """
-    {"SPPowerDataType":[{"_name":"spbattery_information",
-      "sppower_battery_charge_info":{"sppower_battery_state_of_charge":80},
-      "sppower_battery_health_info":{"sppower_battery_cycle_count":183,"sppower_battery_health":"Good",
-        "sppower_battery_health_maximum_capacity":"91%"}},
-      {"_name":"sppower_information"}]}
-    """
+        {"SPPowerDataType":[{"_name":"spbattery_information",
+          "sppower_battery_charge_info":{"sppower_battery_state_of_charge":80},
+          "sppower_battery_health_info":{"sppower_battery_cycle_count":183,"sppower_battery_health":"Good",
+            "sppower_battery_health_maximum_capacity":"91%"}},
+          {"_name":"sppower_information"}]}
+        """
 
     @Test func parsesSystemProfiler() {
         let r = MacReportedHealth.parse(systemProfilerJSON: Data(Self.profilerJSON.utf8))
@@ -107,9 +115,11 @@ struct ConditionTests {
         #expect(MacReportedHealth.parse(systemProfilerJSON: Data("not json".utf8)) == nil)
     }
 
-    @Test(arguments: [("Good", BatteryCondition.Status?.some(.normal)), ("Normal", .normal), ("Fair", .serviceRecommended),
-                      ("Service Recommended", .serviceRecommended), ("Check Battery", .serviceRecommended),
-                      ("", nil)])
+    @Test(arguments: [
+        ("Good", BatteryCondition.Status?.some(.normal)), ("Normal", .normal), ("Fair", .serviceRecommended),
+        ("Service Recommended", .serviceRecommended), ("Check Battery", .serviceRecommended),
+        ("", nil),
+    ])
     func healthStrings(_ health: String, _ status: BatteryCondition.Status?) {
         #expect(MacReportedHealth(health: health, maximumCapacityPercent: nil).status == status)
     }
@@ -122,8 +132,9 @@ struct ConditionTests {
             "AppleRawMaxCapacity": 3353, "DesignCapacity": 4325, "NominalChargeCapacity": 3213, "CycleCount": 746,
             "BatteryShutdownReason": ["ShutDownTimestamp": 0, "ShutDownUpoReboot": 0],
         ]
-        let d = MobileBatteryParser.parse(id: "x", lockdown: ["DeviceClass": "iPhone", "ProductType": "iPhone14,8"],
-                                          battery: [:], registry: registry, connection: .wifi)
+        let d = MobileBatteryParser.parse(
+            id: "x", lockdown: ["DeviceClass": "iPhone", "ProductType": "iPhone14,8"],
+            battery: [:], registry: registry, connection: .wifi)
         #expect(d.nominalChargeCapacityMAh == 3213)
         #expect(d.unexpectedShutdownRecorded == false)
         let c = BatteryCondition.device(d)
@@ -134,7 +145,9 @@ struct ConditionTests {
     }
 
     @Test func unexpectedShutdownRecord() {
-        #expect(MobileBatteryParser.unexpectedShutdown(["ShutDownTimestamp": 1794545882, "ShutDownUpoReboot": 0]) == true)
+        #expect(
+            MobileBatteryParser.unexpectedShutdown(["ShutDownTimestamp": 1_794_545_882, "ShutDownUpoReboot": 0]) == true
+        )
         #expect(MobileBatteryParser.unexpectedShutdown(["ShutDownTimestamp": 0, "ShutDownUpoReboot": 1]) == true)
         #expect(MobileBatteryParser.unexpectedShutdown(["ShutDownTimestamp": 0, "ShutDownUpoReboot": 0]) == false)
         #expect(MobileBatteryParser.unexpectedShutdown(nil) == nil)
@@ -155,7 +168,8 @@ struct ConditionTests {
 
     @Test func rememberedReadingWithoutNewFieldsDecodes() throws {
         // A last-exact file written before F11 has no nominal / shutdown keys.
-        let json = #"{"id":"a","name":"P","kind":"iPhone","percent":80,"isCharging":false,"externalConnected":false,"parts":[],"isApproximate":false,"isLastKnown":true}"#
+        let json =
+            #"{"id":"a","name":"P","kind":"iPhone","percent":80,"isCharging":false,"externalConnected":false,"parts":[],"isApproximate":false,"isLastKnown":true}"#
         let d = try JSONDecoder().decode(DeviceBattery.self, from: Data(json.utf8))
         #expect(d.nominalChargeCapacityMAh == nil)
         #expect(d.unexpectedShutdownRecorded == nil)
@@ -164,8 +178,8 @@ struct ConditionTests {
     // MARK: Rated cycles
 
     @Test(arguments: [
-        ("iPhone14,8", DeviceBattery.Kind.iPhone, Int?.some(500)), // 14 Plus
-        ("iPhone15,3", .iPhone, 500),   // 14 Pro Max
+        ("iPhone14,8", DeviceBattery.Kind.iPhone, Int?.some(500)),  // 14 Plus
+        ("iPhone15,3", .iPhone, 500),  // 14 Pro Max
         ("iPhone15,4", .iPhone, 1000),  // 15
         ("iPhone16,1", .iPhone, 1000),  // 15 Pro
         ("iPhone18,1", .iPhone, 1000),

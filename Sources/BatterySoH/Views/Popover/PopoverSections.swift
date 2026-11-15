@@ -42,8 +42,9 @@ struct PopoverHeader: View {
                 Spacer(minLength: 12)
                 VStack(alignment: .trailing, spacing: 3) {
                     HStack(spacing: 8) {
-                        PopoverBatteryGlyph(fraction: display.chargeFraction, fill: display.chargeColor,
-                                            width: 38, height: 18)
+                        PopoverBatteryGlyph(
+                            fraction: display.chargeFraction, fill: display.chargeColor,
+                            width: 38, height: 18)
                         Text(display.chargeText)
                             .font(.system(size: 26, weight: .semibold))
                             .monospacedDigit()
@@ -66,8 +67,9 @@ struct PopoverTiles: View {
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
-                PopoverTile(title: "Charger", value: display.chargerTile,
-                            valueStyle: display.snapshot.externalConnected ? .primary : .secondary)
+                PopoverTile(
+                    title: "Charger", value: display.chargerTile,
+                    valueStyle: display.snapshot.externalConnected ? .primary : .secondary)
                 PopoverTile(title: "Active profile", value: display.profileTile)
             }
             HStack(spacing: 8) {
@@ -141,13 +143,16 @@ struct PopoverSummary: View {
         let snapshot = display.snapshot
         let time = display.timeRow
         VStack(spacing: 9) {
-            barRow("Battery Charge", value: display.chargeText,
-                   percent: display.chargeFraction * 100, color: display.chargeColor)
-            barRow("Battery Health", value: Fmt.percent(snapshot.healthPercent, decimals: 1),
-                   percent: snapshot.healthPercent, color: PopoverPalette.health(snapshot.healthPercent))
+            barRow(
+                "Battery Charge", value: display.chargeText,
+                percent: display.chargeFraction * 100, color: display.chargeColor)
+            barRow(
+                "Battery Health", value: Fmt.percent(snapshot.healthPercent, decimals: 1),
+                percent: snapshot.healthPercent, color: PopoverPalette.health(snapshot.healthPercent))
             VStack(spacing: 6) {
                 if let condition = display.condition {
-                    row("Condition", value: condition.status.title,
+                    row(
+                        "Condition", value: condition.status.title,
                         color: condition.needsService ? condition.status.tint : nil)
                 }
                 row(time.label, value: time.value)
@@ -174,7 +179,8 @@ struct PopoverSummary: View {
             Text(value)
                 .font(.system(size: 13, weight: color == nil ? .regular : .semibold))
                 .monospacedDigit()
-                .foregroundStyle(color.map { AnyShapeStyle($0) } ?? AnyShapeStyle(value == Fmt.dash ? .secondary : .primary))
+                .foregroundStyle(
+                    color.map { AnyShapeStyle($0) } ?? AnyShapeStyle(value == Fmt.dash ? .secondary : .primary))
         }
         .accessibilityElement(children: .combine)
     }

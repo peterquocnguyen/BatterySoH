@@ -1,6 +1,7 @@
-@testable import BatteryKit
 import Foundation
 import Testing
+
+@testable import BatteryKit
 
 @Suite("Password-free Energy Mode")
 struct PasswordFreeTests {
@@ -16,7 +17,9 @@ struct PasswordFreeTests {
     @Test func rejectsUnsafeUserNames() {
         #expect(PasswordFreeEnergyMode.isValidUserName("quoc.nguyenphu"))
         #expect(PasswordFreeEnergyMode.isValidUserName("peter_q-1"))
-        for bad in ["", "-rf", "a b", "root,ALL", "x\nALL ALL=(ALL) ALL", "a=b", "%admin", String(repeating: "a", count: 65)] {
+        for bad in [
+            "", "-rf", "a b", "root,ALL", "x\nALL ALL=(ALL) ALL", "a=b", "%admin", String(repeating: "a", count: 65),
+        ] {
             #expect(!PasswordFreeEnergyMode.isValidUserName(bad), "\(bad)")
         }
     }

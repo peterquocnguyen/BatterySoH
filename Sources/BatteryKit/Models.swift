@@ -39,9 +39,11 @@ public struct PowerAdapter: Codable, Equatable, Sendable {
         return "Power adapter"
     }
 
-    public init(watts: Int? = nil, voltageMV: Int? = nil, currentMA: Int? = nil,
-                description: String? = nil, isWireless: Bool = false,
-                profiles: [PDProfile] = [], activeProfileIndex: Int? = nil) {
+    public init(
+        watts: Int? = nil, voltageMV: Int? = nil, currentMA: Int? = nil,
+        description: String? = nil, isWireless: Bool = false,
+        profiles: [PDProfile] = [], activeProfileIndex: Int? = nil
+    ) {
         self.watts = watts
         self.voltageMV = voltageMV
         self.currentMA = currentMA
@@ -116,16 +118,18 @@ public struct BatterySnapshot: Codable, Equatable, Sendable {
     public var gaugeName: String?
     public var manufactureDate: Date?
 
-    public init(timestamp: Date = Date(), chargePercent: Int, rawChargePercent: Double? = nil,
-                currentCapacityMAh: Int? = nil, fullChargeCapacityMAh: Int? = nil,
-                nominalChargeCapacityMAh: Int? = nil, designCapacityMAh: Int? = nil,
-                cycleCount: Int? = nil, designCycleCount: Int? = nil,
-                voltageMV: Int? = nil, amperageMA: Int? = nil, temperatureC: Double? = nil,
-                isCharging: Bool = false, externalConnected: Bool = false, fullyCharged: Bool = false,
-                notChargingReason: Int? = nil, minutesToEmpty: Int? = nil, minutesToFull: Int? = nil,
-                adapter: PowerAdapter? = nil, systemLoadW: Double? = nil, systemPowerInW: Double? = nil,
-                serial: String? = nil, gaugeName: String? = nil, manufactureDate: Date? = nil,
-                permanentFailureStatus: Int? = nil) {
+    public init(
+        timestamp: Date = Date(), chargePercent: Int, rawChargePercent: Double? = nil,
+        currentCapacityMAh: Int? = nil, fullChargeCapacityMAh: Int? = nil,
+        nominalChargeCapacityMAh: Int? = nil, designCapacityMAh: Int? = nil,
+        cycleCount: Int? = nil, designCycleCount: Int? = nil,
+        voltageMV: Int? = nil, amperageMA: Int? = nil, temperatureC: Double? = nil,
+        isCharging: Bool = false, externalConnected: Bool = false, fullyCharged: Bool = false,
+        notChargingReason: Int? = nil, minutesToEmpty: Int? = nil, minutesToFull: Int? = nil,
+        adapter: PowerAdapter? = nil, systemLoadW: Double? = nil, systemPowerInW: Double? = nil,
+        serial: String? = nil, gaugeName: String? = nil, manufactureDate: Date? = nil,
+        permanentFailureStatus: Int? = nil
+    ) {
         self.timestamp = timestamp
         self.chargePercent = chargePercent
         self.rawChargePercent = rawChargePercent
@@ -156,11 +160,11 @@ public struct BatterySnapshot: Codable, Equatable, Sendable {
 
 // MARK: - Derived values
 
-public extension BatterySnapshot {
+extension BatterySnapshot {
     /// Battery discharge (W) on AC above which we call it "draining", not idle noise.
-    static let drainThresholdW = 0.5
+    public static let drainThresholdW = 0.5
 
-    var powerState: PowerState {
+    public var powerState: PowerState {
         if !externalConnected { return .onBattery }
         if isCharging { return .charging }
         if let w = batteryPowerW, w <= -Self.drainThresholdW { return .drainingOnAC }
@@ -169,26 +173,28 @@ public extension BatterySnapshot {
     }
 
     /// Battery health 0–100: full-charge capacity vs design capacity.
-    var healthPercent: Double? {
+    public var healthPercent: Double? {
         guard let design = designCapacityMAh, design > 0 else { return nil }
         guard let full = fullChargeCapacityMAh ?? nominalChargeCapacityMAh, full > 0 else { return nil }
         return min(100, Double(full) / Double(design) * 100)
     }
 
     /// Signed battery power in watts: + charging, − discharging.
-    var batteryPowerW: Double? {
+    public var batteryPowerW: Double? {
         guard let v = voltageMV, let a = amperageMA else { return nil }
         return Double(v) * Double(a) / 1_000_000
     }
 
     /// Power the Mac itself uses, in watts.
-    var macLoadW: Double? {
+    public var macLoadW: Double? {
         if let load = systemLoadW, load > 0 { return load }
         switch powerState {
         case .onBattery:
             return batteryPowerW.map { abs($0) }
         case .drainingOnAC:
-            guard let inW = systemPowerInW ?? adapter?.watts.map(Double.init) else { return batteryPowerW.map { abs($0) } }
+            guard let inW = systemPowerInW ?? adapter?.watts.map(Double.init) else {
+                return batteryPowerW.map { abs($0) }
+            }
             return inW + abs(batteryPowerW ?? 0)
         default:
             guard let inW = systemPowerInW else { return nil }
@@ -197,7 +203,7 @@ public extension BatterySnapshot {
     }
 
     /// Minutes for whichever direction is relevant right now.
-    var minutesRemaining: Int? {
+    public var minutesRemaining: Int? {
         switch powerState {
         case .onBattery, .drainingOnAC: return minutesToEmpty
         case .charging: return minutesToFull
@@ -205,13 +211,13 @@ public extension BatterySnapshot {
         }
     }
 
-    var isChargeOnHold: Bool {
+    public var isChargeOnHold: Bool {
         externalConnected && !isCharging && !fullyCharged && (notChargingReason ?? 0) != 0
             && powerState != .drainingOnAC
     }
 
     /// Watts the Mac needs beyond what the charger supplies (only when draining on AC).
-    var chargerDeficitW: Double? {
+    public var chargerDeficitW: Double? {
         guard powerState == .drainingOnAC, let w = batteryPowerW else { return nil }
         return abs(w)
     }

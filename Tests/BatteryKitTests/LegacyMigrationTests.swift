@@ -1,6 +1,7 @@
-@testable import BatteryKit
 import Foundation
 import Testing
+
+@testable import BatteryKit
 
 @Suite("Legacy migration (Battery Buddy → BatterySoH)")
 struct LegacyMigrationTests {
@@ -34,7 +35,8 @@ struct LegacyMigrationTests {
         let base = try tempDir()
         defer { try? FileManager.default.removeItem(at: base) }
         for name in ["BatteryBuddy", "BatterySoH"] {
-            try FileManager.default.createDirectory(at: base.appendingPathComponent(name), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(
+                at: base.appendingPathComponent(name), withIntermediateDirectories: true)
         }
         #expect(!LegacyMigration.moveDataFolder(in: base))
         #expect(FileManager.default.fileExists(atPath: base.appendingPathComponent("BatteryBuddy").path))
@@ -51,7 +53,7 @@ struct LegacyMigrationTests {
             return ["refreshInterval": 1.0, "menuBar.showWatts": true]
         }
         LegacyMigration.run(defaults: d, applicationSupport: base, legacyPreferences: legacy)
-        #expect(d.double(forKey: "refreshInterval") == 5.0) // already set: kept
+        #expect(d.double(forKey: "refreshInterval") == 5.0)  // already set: kept
         #expect(d.bool(forKey: "menuBar.showWatts"))
         LegacyMigration.run(defaults: d, applicationSupport: base, legacyPreferences: legacy)
         #expect(calls == 1)

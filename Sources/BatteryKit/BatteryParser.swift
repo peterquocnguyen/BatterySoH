@@ -41,7 +41,8 @@ public enum BatteryParser {
             externalConnected: externalConnected,
             fullyCharged: bool(dict["FullyCharged"]) ?? false,
             notChargingReason: int(charger["NotChargingReason"]),
-            minutesToEmpty: time(dict["AvgTimeToEmpty"]) ?? time(dict["TimeRemaining"]).flatMap { isCharging || externalConnected ? nil : $0 },
+            minutesToEmpty: time(dict["AvgTimeToEmpty"])
+                ?? time(dict["TimeRemaining"]).flatMap { isCharging || externalConnected ? nil : $0 },
             minutesToFull: time(dict["AvgTimeToFull"]),
             adapter: externalConnected ? adapter(dict["AdapterDetails"]) : nil,
             systemLoadW: milliToUnit(int(telemetry["SystemLoad"])),
@@ -91,7 +92,9 @@ public enum BatteryParser {
         let year = 1980 + ((raw >> 9) & 0x7F)
         guard (1...31).contains(day), (1...12).contains(month), year >= 2000 else { return nil }
         var comps = DateComponents()
-        comps.year = year; comps.month = month; comps.day = day
+        comps.year = year
+        comps.month = month
+        comps.day = day
         return Calendar(identifier: .gregorian).date(from: comps)
     }
 
