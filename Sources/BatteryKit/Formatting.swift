@@ -63,6 +63,28 @@ public enum Fmt {
         return (f.string(from: NSNumber(value: v)) ?? String(v)) + " mAh"
     }
 
+    /// How current a reading is, for "Updated …" / "Last updated …" captions:
+    /// under a minute "just now", under an hour "3 min ago", earlier today the time ("12:40"),
+    /// another day the date ("14 Nov"; with the year when it isn't this year).
+    public static func freshness(_ date: Date, now: Date, calendar: Calendar = .current,
+                                 locale: Locale = .current) -> String {
+        let age = now.timeIntervalSince(date)
+        if age < 60 { return "just now" }
+        if age < 3600 { return "\(Int(age / 60)) min ago" }
+        let f = DateFormatter()
+        f.calendar = calendar
+        f.timeZone = calendar.timeZone
+        f.locale = locale
+        if calendar.isDate(date, inSameDayAs: now) {
+            f.setLocalizedDateFormatFromTemplate("jmm")
+        } else if calendar.component(.year, from: date) == calendar.component(.year, from: now) {
+            f.setLocalizedDateFormatFromTemplate("dMMM")
+        } else {
+            f.setLocalizedDateFormatFromTemplate("dMMMy")
+        }
+        return f.string(from: date)
+    }
+
     static func trimZeros(_ s: String) -> String {
         guard s.contains(".") else { return s }
         var out = s

@@ -73,7 +73,7 @@ struct MainWindowView: View {
                 InsightsContent(subjects: InsightsSubject.all(mac: model.mac, snapshot: model.snapshot,
                                                               devices: model.devices, logs: model.chargeLogs,
                                                               unit: temperatureUnit),
-                                selection: $insightsDevice, now: Date())
+                                selection: $insightsDevice, now: Date(), onOpenFinder: Self.openFinder)
             case .history:
                 HistoryContent(history: model.history, deviceTitle: "This Mac (\(model.mac.name))",
                                onExport: model.history.isEmpty ? nil : exportCSV,
@@ -324,17 +324,34 @@ enum WindowRenderEntries {
             },
             RenderEntry("window-devices") {
                 frame(.devices) {
-                    WindowDevicesContent(devices: DeviceBattery.samples, temperatureUnit: .celsius)
+                    WindowDevicesContent(devices: DeviceBattery.samples, temperatureUnit: .celsius,
+                                         now: ChargeLog.sampleNow)
+                }
+            },
+            RenderEntry("window-devices-live-wifi") {
+                frame(.devices) {
+                    WindowDevicesContent(devices: [.sampleWiFiIPhone, .sampleAirPods], temperatureUnit: .celsius,
+                                         now: ChargeLog.sampleNow)
+                }
+            },
+            RenderEntry("window-devices-remembered") {
+                frame(.devices) {
+                    // Wi-Fi sync dropped (phone asleep): the last exact reading wins over the
+                    // hotspot level, which is not shown.
+                    WindowDevicesContent(devices: HotspotParser.merge(connected: [], remembered: [.sampleRememberedIPhone],
+                                                                      nearby: [.sampleNearbyIPhone]) + [.sampleMouse],
+                                         temperatureUnit: .celsius, now: ChargeLog.sampleNow)
                 }
             },
             RenderEntry("window-devices-empty") {
                 frame(.devices) {
-                    WindowDevicesContent(devices: [], temperatureUnit: .celsius)
+                    WindowDevicesContent(devices: [], temperatureUnit: .celsius, now: ChargeLog.sampleNow)
                 }
             },
             RenderEntry("window-devices-nearby-only") {
                 frame(.devices) {
-                    WindowDevicesContent(devices: [.sampleNearbyIPhone, .sampleAirPods], temperatureUnit: .celsius)
+                    WindowDevicesContent(devices: [.sampleNearbyIPhone, .sampleAirPods], temperatureUnit: .celsius,
+                                         now: ChargeLog.sampleNow)
                 }
             },
             RenderEntry("window-insights-mac") {
@@ -347,6 +364,17 @@ enum WindowRenderEntries {
                 frame(.insights) {
                     InsightsContent(subjects: insightSubjects(mac: mac),
                                     selection: .constant(ChargeLog.sampleIPhoneWeek().id), now: ChargeLog.sampleNow)
+                }
+            },
+            RenderEntry("window-insights-iphone-no-exact") {
+                frame(.insights) {
+                    // Hotspot-only iPhone; its log from an older build holds only approximate samples.
+                    InsightsContent(subjects: InsightsSubject.all(mac: mac, snapshot: .sampleOnBattery,
+                                                                  devices: [.sampleNearbyIPhone],
+                                                                  logs: [.sampleMacWeek(), .sampleApproximateIPhoneWeek()],
+                                                                  unit: .celsius, now: ChargeLog.sampleNow),
+                                    selection: .constant(ChargeLog.sampleApproximateIPhoneWeek().id),
+                                    now: ChargeLog.sampleNow)
                 }
             },
             RenderEntry("window-insights-empty") {
@@ -385,10 +413,10 @@ enum WindowRenderEntries {
         ]
     }
 
-    /// This Mac on battery at 12:07 plus a hotspot-only iPhone, each with a synthetic week.
+    /// This Mac on battery at 12:07 plus an iPhone on Wi-Fi sync, each with a synthetic week.
     private static func insightSubjects(mac: MacInfo) -> [InsightsSubject] {
-        InsightsSubject.all(mac: mac, snapshot: .sampleOnBattery, devices: [.sampleNearbyIPhone],
-                            logs: [.sampleMacWeek(), .sampleIPhoneWeek()], unit: .celsius)
+        InsightsSubject.all(mac: mac, snapshot: .sampleOnBattery, devices: [.sampleWiFiIPhone],
+                            logs: [.sampleMacWeek(), .sampleIPhoneWeek()], unit: .celsius, now: ChargeLog.sampleNow)
     }
 
     /// Tab bar + content at window width, without the ScrollView (which can't render headlessly).

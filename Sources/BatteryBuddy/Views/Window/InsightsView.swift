@@ -3,13 +3,16 @@ import Charts
 import SwiftUI
 
 /// F11 — "Insights" tab: a battery level card, Daily Usage (today vs the usual by this time of
-/// day, 7-day chart) and health, per device, modelled on iOS Settings › Battery.
+/// day, 7-day chart) and health, per device, modelled on iOS Settings › Battery. Exact readings
+/// only: Personal Hotspot levels never feed it.
 /// Pure drawing (Swift Charts renders headlessly); the window wraps it in a ScrollView.
 struct InsightsContent: View {
     let subjects: [InsightsSubject]
     @Binding var selection: String
     let now: Date
     var calendar: Calendar = .current
+    /// Opens Finder for the Wi-Fi sync setup (iPhone / iPad without exact readings).
+    var onOpenFinder: () -> Void = {}
 
     private var subject: InsightsSubject? {
         subjects.first { $0.id == selection } ?? subjects.first
@@ -25,8 +28,10 @@ struct InsightsContent: View {
                     InsightsLevelCard(subject: subject, level: level)
                 }
                 let summary = ChargeAnalysis.summary(subject.samples, now: now, calendar: calendar)
-                if summary.hasAnyData {
-                    InsightsUsageCard(summary: summary, subject: subject,
+                if subject.isMobile, !subject.hasExactData {
+                    InsightsNoExactDataCard(kind: subject.kind, onOpenFinder: onOpenFinder)
+                } else if summary.hasAnyData {
+                    InsightsUsageCard(summary: summary,
                                       time: now.formatted(date: .omitted, time: .shortened), calendar: calendar)
                 } else {
                     InsightsEmptyCard()
@@ -59,29 +64,34 @@ struct InsightsContent: View {
 
 // MARK: - Subjects
 
-/// One device the Insights tab can show: This Mac, or an iPhone / iPad with a charge log.
+/// One device the Insights tab can show: This Mac, or an iPhone / iPad with a charge log or in
+/// range right now.
 struct InsightsSubject: Identifiable {
     /// Charge-log key.
     let id: String
     let name: String
     let symbol: String
     let isMobile: Bool
-    /// "iPhone" / "iPad" for the footnote.
-    let kindName: String
+    /// iPhone / iPad (nil for This Mac).
+    let kind: DeviceBattery.Kind?
+    /// Exact samples only.
     let samples: [ChargeSample]
     /// The top card; nil when nothing is known.
     let level: InsightsLevel?
     /// Health rows; empty hides the card (iPhone without a cabled / Wi-Fi read).
     let healthRows: [WindowRow]
+
+    /// "iPhone" / "iPad" for the footnote.
+    var kindName: String { kind == .iPad ? "iPad" : "iPhone" }
+    var hasExactData: Bool { !samples.isEmpty }
 }
 
-/// What the top card shows.
+/// What the top card shows (always an exact reading).
 struct InsightsLevel {
     var percent: Int
-    var isApproximate: Bool
-    /// "Charging", "On battery", "Last shared level"…
+    /// "Charging", "On battery", "Not connected", "Last reading"…
     var title: String
-    /// "full in 58 min", "since 12:03", "at 09:14"…
+    /// "full in 58 min", "last updated 10:40", "at 09:14"…
     var detail: String?
     var symbol: String
     var symbolTint: Color
@@ -89,30 +99,43 @@ struct InsightsLevel {
 }
 
 extension InsightsSubject {
-    /// This Mac (when it has a battery or a log), then every iPhone / iPad with a log.
+    /// This Mac (when it has a battery or a log), then every iPhone / iPad with a log, then
+    /// iPhones / iPads in range without one (their page says how to get exact readings).
+    /// Approximate (hotspot) samples and levels are left out.
     static func all(mac: MacInfo, snapshot: BatterySnapshot?, devices: [DeviceBattery], logs: [ChargeLog],
-                    unit: Fmt.TemperatureUnit) -> [InsightsSubject] {
+                    unit: Fmt.TemperatureUnit, now: Date = Date()) -> [InsightsSubject] {
         var out: [InsightsSubject] = []
+        let logs = logs.map { log in
+            var exact = log
+            exact.samples.removeAll(where: \.isApproximate)
+            return exact
+        }
         let macLog = logs.first(where: \.isThisMac)
         if snapshot != nil || macLog != nil {
             out.append(InsightsSubject(
                 id: ChargeLog.thisMacID, name: mac.name,
                 symbol: mac.name.localizedCaseInsensitiveContains("book") ? "laptopcomputer" : "desktopcomputer",
-                isMobile: false, kindName: "Mac", samples: macLog?.samples ?? [],
+                isMobile: false, kind: nil, samples: macLog?.samples ?? [],
                 level: snapshot.map(InsightsLevel.init(snapshot:)) ?? macLog.flatMap(InsightsLevel.lastReading),
                 healthRows: snapshot.map { $0.insightsHealthRows } ?? []))
         }
-        for log in logs where !log.isThisMac {
-            let current = devices.first { ChargeLog.key(for: $0) == log.id && $0.percent != nil }
+        let mobile = devices.filter { $0.isIOSDevice }
+        for log in logs where !log.isThisMac && !log.samples.isEmpty {
+            let current = mobile.first { ChargeLog.key(for: $0) == log.id && $0.percent != nil && !$0.isApproximate }
             let kind = current?.kind ?? log.kind ?? .iPhone
             let placeholder = DeviceBattery(id: log.id, name: log.name, kind: kind, percent: nil)
             out.append(InsightsSubject(
-                id: log.id,
-                name: current.flatMap { $0.isApproximate ? nil : $0.name } ?? log.name,
-                symbol: (current ?? placeholder).symbol,
-                isMobile: true, kindName: kind == .iPad ? "iPad" : "iPhone", samples: log.samples,
-                level: current.flatMap(InsightsLevel.init(device:)) ?? InsightsLevel.lastReading(log),
+                id: log.id, name: current?.name ?? log.name, symbol: (current ?? placeholder).symbol,
+                isMobile: true, kind: kind, samples: log.samples,
+                level: current.flatMap { InsightsLevel(device: $0, now: now) } ?? InsightsLevel.lastReading(log),
                 healthRows: current.map { $0.hasHealth ? $0.healthRows(unit: unit) : [] } ?? []))
+        }
+        for d in mobile {
+            guard let key = ChargeLog.key(for: d), !out.contains(where: { $0.id == key }) else { continue }
+            out.append(InsightsSubject(
+                id: key, name: d.name, symbol: d.symbol, isMobile: true, kind: d.kind, samples: [],
+                level: InsightsLevel(device: d, now: now),
+                healthRows: d.hasHealth && !d.isApproximate ? d.healthRows(unit: unit) : []))
         }
         return out
     }
@@ -127,39 +150,39 @@ extension InsightsLevel {
         case .full, .onACNotCharging: detail = nil
         }
         let low = s.powerState == .onBattery || s.powerState == .drainingOnAC
-        self.init(percent: s.chargePercent, isApproximate: false, title: s.statusTitle, detail: detail,
+        self.init(percent: s.chargePercent, title: s.statusTitle, detail: detail,
                   symbol: s.isCharging ? "bolt.fill" : (s.externalConnected ? "powerplug.fill" : "battery.75percent"),
                   symbolTint: s.isCharging ? .green : .secondary,
                   barTint: low ? Self.levelTint(s.chargePercent) : .green)
     }
 
-    init?(device d: DeviceBattery) {
-        guard let percent = d.percent else { return nil }
-        if d.isApproximate {
-            self.init(percent: percent, isApproximate: true, title: "Last shared level",
-                      detail: d.levelSince.map { "since \($0.formatted(date: .omitted, time: .shortened))" },
-                      symbol: "personalhotspot", symbolTint: .secondary, barTint: .gray)
+    /// Exact readings only: nil for a hotspot level.
+    init?(device d: DeviceBattery, now: Date) {
+        guard let percent = d.percent, !d.isApproximate else { return nil }
+        if d.isLastKnown {
+            self.init(percent: percent, title: "Not connected",
+                      detail: d.updatedAt.map { "last updated \(Fmt.freshness($0, now: now))" },
+                      symbol: "wifi.slash", symbolTint: .secondary, barTint: .gray)
         } else {
             let title = d.isCharging ? "Charging" : (d.externalConnected ? "Charger connected" : "On battery")
-            self.init(percent: percent, isApproximate: false, title: title, detail: nil,
+            self.init(percent: percent, title: title,
+                      detail: d.updatedAt.map { "updated \(Fmt.freshness($0, now: now))" },
                       symbol: d.isCharging ? "bolt.fill" : (d.externalConnected ? "powerplug.fill" : "battery.75percent"),
                       symbolTint: d.isCharging ? .green : .secondary,
                       barTint: d.isCharging ? .green : Self.levelTint(percent))
         }
     }
 
-    /// The newest logged reading, for a device that isn't in range right now.
+    /// The newest exact logged reading, for a device that isn't in range right now.
     static func lastReading(_ log: ChargeLog) -> InsightsLevel? {
-        guard let last = log.samples.last else { return nil }
+        guard let last = log.samples.last(where: { !$0.isApproximate }) else { return nil }
         let when = last.end
         let at = Calendar.current.isDateInToday(when)
             ? "at \(when.formatted(date: .omitted, time: .shortened))"
             : when.formatted(.dateTime.weekday(.abbreviated).hour().minute())
         let percent = Int(last.percent.rounded())
-        return InsightsLevel(percent: percent, isApproximate: last.isApproximate,
-                             title: last.isApproximate ? "Last shared level" : "Last reading", detail: at,
-                             symbol: "clock", symbolTint: .secondary,
-                             barTint: last.isApproximate ? .gray : levelTint(percent))
+        return InsightsLevel(percent: percent, title: "Last reading", detail: at,
+                             symbol: "clock", symbolTint: .secondary, barTint: .gray)
     }
 
     static func levelTint(_ percent: Int) -> Color {
@@ -168,7 +191,7 @@ extension InsightsLevel {
         return .green
     }
 
-    var percentText: String { isApproximate ? "≈ \(percent)%" : "\(percent)%" }
+    var percentText: String { "\(percent)%" }
 }
 
 private extension BatterySnapshot {
@@ -282,14 +305,6 @@ private struct InsightsLevelCard: View {
                 .monospacedDigit()
                 .foregroundStyle(.tertiary)
                 .padding(.top, 4)
-
-                if level.isApproximate {
-                    Text("Last level the \(subject.kindName) shared over Personal Hotspot. It can lag well behind the \(subject.kindName == "iPhone" ? "phone" : subject.kindName).")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 10)
-                }
             }
             .padding(14)
         }
@@ -318,7 +333,6 @@ private struct InsightsLevelBar: View {
 
 private struct InsightsUsageCard: View {
     let summary: UsageSummary
-    let subject: InsightsSubject
     /// Current time of day, e.g. "12:07".
     let time: String
     let calendar: Calendar
@@ -347,15 +361,6 @@ private struct InsightsUsageCard: View {
 
                 InsightsLegend(time: time)
                     .padding(.top, 10)
-
-                if summary.usesApproximateData {
-                    Label("Based on levels the \(subject.kindName) shared over Personal Hotspot, which can lag behind it, so usage is rough.",
-                          systemImage: "exclamationmark.circle")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 10)
-                }
             }
             .padding(14)
         }
@@ -517,6 +522,39 @@ private struct InsightsEmptyCard: View {
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 24)
             .padding(.vertical, 36)
+        }
+    }
+}
+
+/// An iPhone / iPad with no exact readings (only seen through Personal Hotspot, or logs from an
+/// older build that were all hotspot levels): how to start Insights for it.
+private struct InsightsNoExactDataCard: View {
+    let kind: DeviceBattery.Kind?
+    let onOpenFinder: () -> Void
+
+    private var device: String { kind == .iPad ? "iPad" : "iPhone" }
+
+    var body: some View {
+        WindowCard {
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(spacing: 10) {
+                    Image(systemName: "chart.bar.xaxis")
+                        .font(.system(size: 34, weight: .light))
+                        .foregroundStyle(.tint)
+                    Text("No exact readings yet")
+                        .font(.headline)
+                    Text("Connect this \(device) by cable or Wi-Fi sync to start Insights. Battery Buddy only uses exact readings here.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 10)
+                .padding(.top, 14)
+                WindowWiFiSyncSetup(kind: kind ?? .iPhone, prominent: true, onOpenFinder: onOpenFinder)
+            }
+            .padding(14)
         }
     }
 }

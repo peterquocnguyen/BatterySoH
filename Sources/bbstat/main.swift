@@ -5,7 +5,8 @@ import Foundation
 //   bbstat          human-readable
 //   bbstat --json   JSON snapshot
 //   bbstat --raw    raw AppleSmartBattery registry as XML plist (fixture capture)
-//   bbstat --devices          other devices: accessories + iPhone/iPad (add --json for JSON)
+//   bbstat --devices          other devices: accessories + iPhone/iPad (add --json for JSON);
+//                             a disconnected iPhone/iPad shows the app's last exact reading
 //   bbstat --devices --raw    raw accessory power source descriptions as XML plist
 
 let args = Set(CommandLine.arguments.dropFirst())
@@ -42,10 +43,14 @@ if args.contains("--devices") {
     let wait = argv.firstIndex(of: "--wait").flatMap { i in i + 1 < argv.count ? Double(argv[i + 1]) : nil } ?? 4
     RunLoop.main.run(until: Date().addingTimeInterval(monitor == nil && hotspot == nil ? 0 : wait))
     hotspot?.stop()
-    let devices = HotspotParser.merge(cabled: mobile, nearby: nearby) + AccessoryPowerSources.read()
+    // The app's last exact reading per iPhone / iPad (read only; the app owns the file).
+    let remembered = LastExactReadingStore().devices
+    let devices = HotspotParser.merge(connected: mobile, remembered: remembered, nearby: nearby)
+        + AccessoryPowerSources.read()
     if args.contains("--json") {
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
+        enc.dateEncodingStrategy = .iso8601
         FileHandle.standardOutput.write(try enc.encode(devices))
         print()
         exit(0)
@@ -57,7 +62,12 @@ if args.contains("--devices") {
         let charge = d.percent.map { d.isApproximate ? "≈\($0)% (hotspot, may lag)" : "\($0)%" } ?? Fmt.dash
         let state = d.isCharging ? " charging" : (d.externalConnected ? " on power" : "")
         let via = d.connection.map { " · \($0.rawValue)" } ?? ""
-        print("\(d.name) [\(d.kind.rawValue)\(via)] \(charge)\(state)")
+        var status = ""
+        if d.isLastKnown { status += " · not connected (last exact reading)" }
+        if d.isIOSDevice, !d.isApproximate, let updated = d.updatedAt {
+            status += " · updated \(Fmt.freshness(updated, now: Date()))"
+        }
+        print("\(d.name) [\(d.kind.rawValue)\(via)] \(charge)\(state)\(status)")
         for part in d.parts {
             print("    \(part.name): \(part.percent.map { "\($0)%" } ?? Fmt.dash)\(part.isCharging ? " charging" : "")")
         }

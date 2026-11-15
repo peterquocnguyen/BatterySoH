@@ -164,7 +164,7 @@ public final class MobileDeviceMonitor: @unchecked Sendable {
             let name = lockdown["DeviceClass"] as? String ?? "the device"
             return MobileBatteryParser.parse(
                 id: udid, lockdown: lockdown, battery: [:], registry: nil, connection: connection,
-                note: "Unlock \(name) and tap Trust to see its battery.")
+                note: "Unlock \(name) and tap Trust to see its battery.", updatedAt: Date())
         }
 
         let lockdown = lockdownValues()
@@ -195,7 +195,7 @@ public final class MobileDeviceMonitor: @unchecked Sendable {
             }
         }
         return MobileBatteryParser.parse(id: udid, lockdown: lockdown, battery: battery,
-                                         registry: registry, connection: connection)
+                                         registry: registry, connection: connection, updatedAt: Date())
     }
 
     /// diagnostics_relay: `{Request: IORegistry, EntryClass: IOPMPowerSource}` →

@@ -10,22 +10,25 @@ import Observation
 /// - A fast timer runs only while a UI surface is visible (`visibleSurfaces > 0`).
 /// - A slow timer (5 min) keeps the menu bar title fresh, records one history sample per day
 ///   and one charge-log reading for Insights (F11) — the same registry read, nothing extra.
-/// - Instant Hotspot browsing runs while a surface is visible (restarted every minute in case
-///   the phone re-advertises), plus one 10 s browse every 30 min when idle, and only once a
-///   hotspot-only iPhone / iPad has been logged.
+/// - Instant Hotspot browsing runs only while a surface is visible (restarted every minute in
+///   case the phone re-advertises). Its levels are never logged (Insights uses exact data only).
 @Observable
 @MainActor
 final class BatteryModel {
     private(set) var snapshot: BatterySnapshot?
     let mac: MacInfo
     private(set) var history: [HistorySample] = []
-    /// Other devices: iPhone / iPad (cabled reads first, then nearby-only ones), then
-    /// Bluetooth / USB accessories.
+    /// Other devices: iPhone / iPad (exact connected reads, then the last exact reading of
+    /// disconnected ones, then hotspot-only ones), then Bluetooth / USB accessories.
     var devices: [DeviceBattery] {
-        HotspotParser.merge(cabled: mobileDevices, nearby: nearbyDevices) + accessories
+        let exactLogNames = chargeLogs.filter { !$0.isThisMac }.map(\.name)
+        return HotspotParser.merge(connected: mobileDevices, remembered: rememberedDevices,
+                                   nearby: nearbyDevices, knownNames: exactLogNames) + accessories
     }
     private(set) var accessories: [DeviceBattery] = []
     private(set) var mobileDevices: [DeviceBattery] = []
+    /// Last exact reading per iPhone / iPad (persisted), shown while it isn't connected.
+    private(set) var rememberedDevices: [DeviceBattery] = []
     private(set) var nearbyDevices: [DeviceBattery] = []
     /// F11 charge logs (This Mac + iPhones / iPads), refreshed on every new sample.
     private(set) var chargeLogs: [ChargeLog] = []
@@ -33,17 +36,16 @@ final class BatteryModel {
     private let reader = BatteryReader()
     private let store = HistoryStore()
     @ObservationIgnored private var chargeStore: ChargeLogStore?
+    @ObservationIgnored private var lastExactStore: LastExactReadingStore?
     @ObservationIgnored private var observer: PowerSources.Observer?
     @ObservationIgnored private var fastTimer: Timer?
     @ObservationIgnored private var slowTimer: Timer?
-    @ObservationIgnored private var idleBrowseTimer: Timer?
-    @ObservationIgnored private var idleBrowseStop: Task<Void, Never>?
     @ObservationIgnored private var terminateObserver: NSObjectProtocol?
     @ObservationIgnored private var visibleSurfaces = 0
     /// Started on first visible surface so MobileDevice.framework only loads when needed.
     @ObservationIgnored private var mobileMonitor: MobileDeviceMonitor?
     @ObservationIgnored private var mobileRefreshed = Date.distantPast
-    /// Instant Hotspot browser: runs while a surface is visible, plus the short idle browse.
+    /// Instant Hotspot browser: runs only while a surface is visible.
     @ObservationIgnored private var hotspotBrowser: NearbyHotspotBrowser?
     /// When browsing last (re)started; nil while stopped.
     @ObservationIgnored private var hotspotStartedAt: Date?
@@ -52,8 +54,6 @@ final class BatteryModel {
 
     static let hotspotRestartInterval: TimeInterval = 60
     static let sampleInterval: TimeInterval = 5 * 60
-    static let idleBrowseInterval: TimeInterval = 30 * 60
-    static let idleBrowseDuration: Duration = .seconds(10)
 
     @ObservationIgnored private let isStatic: Bool
 
@@ -106,6 +106,9 @@ final class BatteryModel {
         let charge = ChargeLogStore()
         chargeStore = charge
         chargeLogs = Self.sorted(charge.logs)
+        let lastExact = LastExactReadingStore()
+        lastExactStore = lastExact
+        rememberedDevices = lastExact.devices
         refresh()
         refreshControls()
         observer = PowerSources.Observer { [weak self] in
@@ -121,13 +124,12 @@ final class BatteryModel {
             }
         }
         slowTimer?.tolerance = 60
-        idleBrowseTimer = Timer.scheduledTimer(withTimeInterval: Self.idleBrowseInterval, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.idleBrowse() }
-        }
-        idleBrowseTimer?.tolerance = 5 * 60
         terminateObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.chargeStore?.flush() }
+            MainActor.assumeIsolated {
+                self?.chargeStore?.flush()
+                try? self?.lastExactStore?.flush()
+            }
         }
         lowPowerObserver = NotificationCenter.default.addObserver(
             forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main) { [weak self] _ in
@@ -162,6 +164,7 @@ final class BatteryModel {
                     guard let self else { return }
                     // Exact readings: logged on every read, even when the list is unchanged.
                     self.logDevices(list)
+                    self.rememberExact(list)
                     guard list != self.mobileDevices else { return }
                     self.mobileDevices = list
                 }
@@ -177,10 +180,7 @@ final class BatteryModel {
     /// Call from `.onAppear` / `.onDisappear` of popover and window.
     func surfaceAppeared() {
         visibleSurfaces += 1
-        if visibleSurfaces == 1 {
-            idleBrowseStop?.cancel()
-            startNearbyBrowsing()
-        }
+        if visibleSurfaces == 1 { startNearbyBrowsing() }
         refresh()
         refreshControls()
         restartFastTimer()
@@ -221,27 +221,23 @@ final class BatteryModel {
         nearbyGraceUntil = Date().addingTimeInterval(15)
     }
 
-    /// One short browse while nothing is visible, so a hotspot-only iPhone keeps a usable log.
-    /// Only after one has been logged: Macs without a nearby iPhone never browse in the background.
-    private func idleBrowse() {
-        guard !isStatic, visibleSurfaces == 0, hotspotStartedAt == nil,
-              chargeLogs.contains(where: { log in log.samples.contains(where: \.isApproximate) }) else { return }
-        startNearbyBrowsing()
-        idleBrowseStop?.cancel()
-        idleBrowseStop = Task { [weak self] in
-            try? await Task.sleep(for: Self.idleBrowseDuration)
-            guard !Task.isCancelled, let self, self.visibleSurfaces == 0 else { return }
-            self.stopNearbyBrowsing()
-        }
-    }
-
+    /// Display only: hotspot levels are not logged (Insights uses exact data only).
     private func applyNearby(_ list: [DeviceBattery]) {
         let now = Date()
         if list.isEmpty, !nearbyDevices.isEmpty, now < nearbyGraceUntil { return }
-        let stamped = HotspotParser.carryLevelSince(previous: nearbyDevices, current: list, now: now)
+        let stamped = HotspotParser.carryUpdatedAt(previous: nearbyDevices, current: list, now: now)
         if stamped != nearbyDevices { nearbyDevices = stamped }
-        // Log only nearby-only devices: a cabled read of the same phone is logged exactly.
-        logDevices(HotspotParser.merge(cabled: mobileDevices, nearby: stamped).filter(\.isApproximate))
+    }
+
+    /// Keeps each device's last exact reading for when it disconnects; written to disk when it
+    /// changes (at most every few minutes otherwise) and right away when a device drops off.
+    private func rememberExact(_ list: [DeviceBattery]) {
+        guard let lastExactStore else { return }
+        _ = try? lastExactStore.remember(list)
+        let ids = Set(list.map(\.id))
+        if mobileDevices.contains(where: { !ids.contains($0.id) }) { try? lastExactStore.flush() }
+        let remembered = lastExactStore.devices
+        if remembered != rememberedDevices { rememberedDevices = remembered }
     }
 
     // MARK: Charge log (F11)
@@ -251,15 +247,12 @@ final class BatteryModel {
         record(key: ChargeLog.thisMacID, name: mac.name, kind: nil, model: mac.identifier, sample: sample)
     }
 
-    /// iPhone / iPad readings. Advertised (hotspot) levels are logged as approximate.
+    /// Exact iPhone / iPad readings only (`ChargeLog.exactSample` skips everything else).
     private func logDevices(_ list: [DeviceBattery]) {
         let now = Date()
         for d in list {
-            guard let key = ChargeLog.key(for: d), let percent = d.percent else { continue }
-            let sample = ChargeSample(date: now, percent: Double(percent),
-                                      isCharging: d.isApproximate ? nil : d.isCharging,
-                                      isApproximate: d.isApproximate)
-            record(key: key, name: d.name, kind: d.kind, model: d.model, sample: sample)
+            guard let entry = ChargeLog.exactSample(for: d, at: now) else { continue }
+            record(key: entry.key, name: d.name, kind: d.kind, model: d.model, sample: entry.sample)
         }
     }
 

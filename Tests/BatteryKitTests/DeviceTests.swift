@@ -162,7 +162,154 @@ struct HotspotParserTests {
         let other = try #require(HotspotParser.parse(identifier: "o", name: "Kid", model: "iPhone12,1", batteryLife: 40))
         let cabled = DeviceBattery(id: "u", name: "Alice’s iPhone", kind: .iPhone, connection: .usb,
                                    model: "iPhone14,8", percent: 76)
-        let merged = HotspotParser.merge(cabled: [cabled], nearby: [nearby, other])
+        let merged = HotspotParser.merge(connected: [cabled], nearby: [nearby, other])
         #expect(merged.map(\.id) == ["u", "hotspot-o"])
+    }
+}
+
+@Suite("Last exact reading")
+struct LastExactReadingTests {
+    static let t0 = utcDate(2026, 11, 15, 12, 40)
+    static let wifi = DeviceBattery(id: "udid-1", name: "Peter’s iP", kind: .iPhone, connection: .wifi,
+                                    model: "iPhone14,8", osVersion: "iOS 27.1", percent: 91, isCharging: true,
+                                    externalConnected: true, fullChargeCapacityMAh: 4012, designCapacityMAh: 4325,
+                                    cycleCount: 388, updatedAt: t0)
+
+    func hotspot(_ name: String = "Peter’s iP", percent: Int = 75) throws -> DeviceBattery {
+        try #require(HotspotParser.parse(identifier: "h", name: name, model: "iPhone14,8", batteryLife: percent))
+    }
+
+    @Test func connectedBeatsRememberedBeatsHotspot() throws {
+        let nearby = try hotspot()
+        var live = Self.wifi
+        live.percent = 93
+        // Connected: the live read; the remembered copy of the same device is dropped.
+        let connected = HotspotParser.merge(connected: [live], remembered: [Self.wifi], nearby: [nearby])
+        #expect(connected.count == 1)
+        #expect(connected[0].percent == 93)
+        #expect(!connected[0].isLastKnown)
+        #expect(connected[0].isCharging)
+
+        // Disconnected: the last exact reading, marked not connected, beats the hotspot level.
+        let remembered = HotspotParser.merge(connected: [], remembered: [Self.wifi], nearby: [nearby])
+        #expect(remembered.count == 1)
+        let d = remembered[0]
+        #expect(d.isLastKnown)
+        #expect(!d.isApproximate)
+        #expect(d.percent == 91)
+        #expect(d.updatedAt == Self.t0)
+        #expect(d.connection == nil)
+        #expect(!d.isCharging) // no charging claim for a device that isn't there
+        #expect(d.cycleCount == 388) // health stays
+
+        // Never read exactly: the hotspot level.
+        let hotspotOnly = HotspotParser.merge(connected: [], remembered: [], nearby: [nearby])
+        #expect(hotspotOnly.map(\.isApproximate) == [true])
+        #expect(hotspotOnly[0].percent == 75)
+    }
+
+    @Test func hotspotOfAnotherPhoneStays() throws {
+        let kid = try #require(HotspotParser.parse(identifier: "k", name: "Kid", model: "iPhone12,1", batteryLife: 40))
+        let other = try hotspot("Work iPhone")
+        let merged = HotspotParser.merge(connected: [], remembered: [Self.wifi], nearby: [kid, other])
+        #expect(merged.map(\.name) == ["Peter’s iP", "Kid", "Work iPhone"])
+    }
+
+    @Test func rememberedApproximateOrLevelessReadingsAreIgnored() throws {
+        let merged = HotspotParser.merge(connected: [], remembered: [try hotspot(), .sampleIPadUntrusted], nearby: [])
+        #expect(merged.isEmpty)
+    }
+
+    @Test func twelveByteNameThatIsAKnownExactNameHasNoEllipsis() throws {
+        // "Peter’s iP" is exactly 12 UTF-8 bytes: the advertisement may not have cut it.
+        #expect("Peter’s iP".utf8.count == 12)
+        let nearby = try hotspot()
+        #expect(nearby.name == "Peter’s iP…") // unknown on its own
+        let fixed = HotspotParser.merge(connected: [], nearby: [nearby], knownNames: ["Peter’s iP"])
+        #expect(fixed.map(\.name) == ["Peter’s iP"])
+        // A longer exact name means the advert really was cut.
+        let cut = HotspotParser.merge(connected: [], nearby: [nearby], knownNames: ["Peter’s iPhone"])
+        #expect(cut.map(\.name) == ["Peter’s iP…"])
+        // Shorter names never get the marker.
+        #expect(try hotspot("iPad").name == "iPad")
+    }
+
+    @Test func storeRoundTripsAndKeepsOnlyExactReadings() throws {
+        let tmp = try TempDir()
+        let url = tmp.url.appendingPathComponent("BatteryBuddy/last-exact-readings.json")
+        let store = LastExactReadingStore(fileURL: url)
+        #expect(store.devices.isEmpty)
+        #expect(try store.remember([Self.wifi, try hotspot(), .sampleIPadUntrusted, .sampleMouse], now: Self.t0))
+        #expect(store.devices.map(\.id) == ["udid-1"])
+
+        let reloaded = LastExactReadingStore(fileURL: url)
+        #expect(reloaded.devices == [Self.wifi])
+        #expect(reloaded.readings["udid-1"]?.updatedAt == Self.t0)
+    }
+
+    @Test func storeWritesOnChangeAndBatchesTimeOnlyUpdates() throws {
+        let tmp = try TempDir()
+        let url = tmp.url.appendingPathComponent("last.json")
+        let store = LastExactReadingStore(fileURL: url)
+        #expect(try store.remember([Self.wifi], now: Self.t0))
+        // Same reading a minute later: memory only.
+        var later = Self.wifi
+        later.updatedAt = Self.t0.addingTimeInterval(60)
+        #expect(try !store.remember([later], now: Self.t0.addingTimeInterval(60)))
+        #expect(store.readings["udid-1"]?.updatedAt == later.updatedAt)
+        #expect(LastExactReadingStore(fileURL: url).readings["udid-1"]?.updatedAt == Self.t0)
+        // flush (disconnect / quit) writes it.
+        try store.flush(now: Self.t0.addingTimeInterval(61))
+        #expect(LastExactReadingStore(fileURL: url).readings["udid-1"]?.updatedAt == later.updatedAt)
+        // A new level is written right away.
+        var dropped = later
+        dropped.percent = 90
+        dropped.updatedAt = Self.t0.addingTimeInterval(120)
+        #expect(try store.remember([dropped], now: Self.t0.addingTimeInterval(120)))
+        #expect(LastExactReadingStore(fileURL: url).readings["udid-1"]?.percent == 90)
+    }
+
+    @Test func unreadableFileStartsEmpty() throws {
+        let tmp = try TempDir()
+        let url = tmp.url.appendingPathComponent("last.json")
+        try Data("not json".utf8).write(to: url)
+        #expect(LastExactReadingStore(fileURL: url).devices.isEmpty)
+    }
+
+    @Test func mobileReadCarriesItsTime() {
+        let d = MobileBatteryParser.parse(id: "u", lockdown: ["DeviceClass": "iPhone"],
+                                          battery: ["BatteryCurrentCapacity": 91], registry: nil,
+                                          connection: .wifi, updatedAt: Self.t0)
+        #expect(d.updatedAt == Self.t0)
+        #expect(d.isExactReading)
+    }
+}
+
+@Suite("Freshness")
+struct FreshnessTests {
+    let now = utcDate(2026, 11, 15, 12, 40)
+    let locale = Locale(identifier: "en_GB")
+
+    func fresh(_ seconds: TimeInterval) -> String {
+        Fmt.freshness(now.addingTimeInterval(-seconds), now: now, calendar: utcCalendar, locale: locale)
+    }
+
+    @Test func relativeWhenRecent() {
+        #expect(fresh(0) == "just now")
+        #expect(fresh(59) == "just now")
+        #expect(fresh(-30) == "just now") // clock skew
+        #expect(fresh(60) == "1 min ago")
+        #expect(fresh(3 * 60 + 20) == "3 min ago")
+        #expect(fresh(59 * 60 + 59) == "59 min ago")
+    }
+
+    @Test func timeEarlierToday() {
+        #expect(fresh(3600) == "11:40")
+        #expect(Fmt.freshness(utcDate(2026, 11, 15, 0, 5), now: now, calendar: utcCalendar, locale: locale) == "00:05")
+    }
+
+    @Test func dateOnOtherDays() {
+        #expect(Fmt.freshness(utcDate(2026, 11, 14, 23, 50), now: now, calendar: utcCalendar, locale: locale) == "14 Nov")
+        #expect(Fmt.freshness(utcDate(2025, 12, 31, 9), now: now, calendar: utcCalendar, locale: locale) == "31 Dec 2025")
     }
 }

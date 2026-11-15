@@ -116,28 +116,52 @@ public enum HotspotParser {
         return out
     }
 
-    /// Keeps `levelSince` from the previous list while a device's advertised percent is
-    /// unchanged; stamps `now` when the device or its percent is new.
-    public static func carryLevelSince(previous: [DeviceBattery], current: [DeviceBattery], now: Date) -> [DeviceBattery] {
+    /// Keeps `updatedAt` from the previous list while a device's advertised percent is
+    /// unchanged; stamps `now` when the device or its percent is new (so it is "first seen").
+    public static func carryUpdatedAt(previous: [DeviceBattery], current: [DeviceBattery], now: Date) -> [DeviceBattery] {
         current.map { device in
             var d = device
-            if let old = previous.first(where: { $0.id == d.id }), old.percent == d.percent, let since = old.levelSince {
-                d.levelSince = since
+            if let old = previous.first(where: { $0.id == d.id }), old.percent == d.percent, let since = old.updatedAt {
+                d.updatedAt = since
             } else {
-                d.levelSince = d.percent == nil ? nil : now
+                d.updatedAt = d.percent == nil ? nil : now
             }
             return d
         }
     }
 
-    /// Cabled reads win (exact level, charging state, health): drop a nearby (approximate)
-    /// entry when a cabled device has the same model and a name that starts with the
-    /// advertised (truncated) name.
-    public static func merge(cabled: [DeviceBattery], nearby: [DeviceBattery]) -> [DeviceBattery] {
-        let extra = nearby.filter { n in
-            let stem = n.name.hasSuffix("…") ? String(n.name.dropLast()) : n.name
-            return !cabled.contains { $0.model == n.model && $0.name.hasPrefix(stem) }
-        }
-        return cabled + extra
+    /// iPhone / iPad list in order of trust: exact connected reads (live level, charging state,
+    /// health) > the last exact reading of a device that is no longer connected (`lastKnown`)
+    /// > an Instant Hotspot level for a device never read exactly.
+    ///
+    /// A remembered reading is dropped when the same device (id) is connected. A hotspot entry is
+    /// dropped when a connected or remembered device has the same model and a name that starts
+    /// with the advertised name stem. `knownNames` are other exact device names (e.g. from the
+    /// charge log) used only to fix the "…" on an advertised name that wasn't cut after all.
+    public static func merge(connected: [DeviceBattery], remembered: [DeviceBattery] = [],
+                             nearby: [DeviceBattery], knownNames: [String] = []) -> [DeviceBattery] {
+        let connectedIDs = Set(connected.map(\.id))
+        let lastKnown = remembered.filter { !connectedIDs.contains($0.id) && $0.isExactReading }.map(\.lastKnown)
+        let exact = connected + lastKnown
+        let names = Set(exact.map(\.name) + knownNames)
+        let extra = nearby
+            .filter { n in
+                let stem = advertisedStem(n.name)
+                return !exact.contains { $0.model == n.model && $0.name.hasPrefix(stem) }
+            }
+            .map { untruncated($0, knownNames: names) }
+        return exact + extra
+    }
+
+    /// The advertisement keeps at most `advertisedNameBytes` bytes, so `parse` marks a name that
+    /// long with "…". A name that is exactly that long and equals a known exact device name was
+    /// not cut: drop the marker.
+    public static func untruncated(_ device: DeviceBattery, knownNames: Set<String>) -> DeviceBattery {
+        guard device.name.hasSuffix("…") else { return device }
+        let raw = String(device.name.dropLast())
+        guard raw.utf8.count == advertisedNameBytes, knownNames.contains(raw) else { return device }
+        var d = device
+        d.name = raw
+        return d
     }
 }

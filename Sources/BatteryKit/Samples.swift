@@ -78,10 +78,34 @@ public extension HistorySample {
 
 /// Canned other-device batteries for previews and render checks.
 public extension DeviceBattery {
+    /// A time on the sample day (2026-11-15, local), for `updatedAt` in render entries.
+    private static func sampleTime(_ hour: Int, _ minute: Int, _ second: Int = 0) -> Date? {
+        Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 15, hour: hour, minute: minute, second: second))
+    }
+
     static let sampleIPhone = DeviceBattery(
         id: "sample-iphone", name: "Work iPhone", kind: .iPhone, connection: .usb,
         model: "iPhone18,1", osVersion: "iOS 26.1", percent: 64, isCharging: true, externalConnected: true,
-        fullChargeCapacityMAh: 3712, designCapacityMAh: 4005, cycleCount: 212, temperatureC: 30.2)
+        fullChargeCapacityMAh: 3712, designCapacityMAh: 4005, cycleCount: 212, temperatureC: 30.2,
+        updatedAt: sampleTime(12, 4))
+
+    /// Read over Wi-Fi sync seconds before `ChargeLog.sampleNow`: "Updated just now".
+    static let sampleWiFiIPhone = DeviceBattery(
+        id: "sample-wifi-iphone", name: "Peter’s iP", kind: .iPhone, connection: .wifi,
+        model: "iPhone14,8", osVersion: "iOS 27.1", percent: 91, isCharging: true, externalConnected: true,
+        fullChargeCapacityMAh: 4012, designCapacityMAh: 4325, cycleCount: 388,
+        updatedAt: sampleTime(12, 6, 40))
+
+    /// The same phone's last exact reading at 10:40, before it went to sleep (pass it to
+    /// `HotspotParser.merge` as `remembered`).
+    static let sampleRememberedIPhone: DeviceBattery = {
+        var d = sampleWiFiIPhone
+        d.percent = 88
+        d.isCharging = false
+        d.externalConnected = false
+        d.updatedAt = sampleTime(10, 40)
+        return d
+    }()
 
     static let sampleIPadUntrusted = DeviceBattery(
         id: "sample-ipad", name: "iPad", kind: .iPad, connection: .wifi, model: "iPad16,3",
@@ -102,8 +126,7 @@ public extension DeviceBattery {
     static let sampleNearbyIPhone = DeviceBattery(
         id: "sample-nearby", name: "Peter’s iP…", kind: .iPhone, connection: .nearby,
         model: "iPhone14,8", percent: 75, note: HotspotParser.approximateNote(kind: .iPhone),
-        isApproximate: true,
-        levelSince: Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 15, hour: 12, minute: 3)))
+        isApproximate: true, updatedAt: sampleTime(12, 3))
 
     static let samples: [DeviceBattery] = [sampleIPhone, sampleIPadUntrusted, sampleNearbyIPhone,
                                            sampleAirPods, sampleMouse, sampleKeyboard]
@@ -126,9 +149,19 @@ public extension ChargeLog {
         return log
     }
 
-    /// An iPhone seen only through Instant Hotspot: approximate readings every 30 minutes
-    /// (the idle browse), 7:00–23:00, charging on the desk 18:00–19:00.
+    /// An iPhone on Wi-Fi sync: exact readings every 15 minutes, 7:00–23:00, charging on the
+    /// desk 18:00–19:00.
     static func sampleIPhoneWeek(now: Date = sampleNow, calendar: Calendar = .current) -> ChargeLog {
+        var log = ChargeLog(id: "ios|iPhone14,8|Peter’s iP", name: "Peter’s iP", kind: .iPhone, model: "iPhone14,8")
+        simulate(&log, now: now, calendar: calendar, factors: [0.9, 1.1, 1.0, 1.3, 0.8, 1.0, 1.2, 1.15],
+                 step: 15, hours: 7...23, drainPerHour: 5, charging: 18..<19, chargePerHour: 30,
+                 approximate: false)
+        return log
+    }
+
+    /// A log from an older build that only holds approximate (Instant Hotspot) samples:
+    /// Insights ignores them.
+    static func sampleApproximateIPhoneWeek(now: Date = sampleNow, calendar: Calendar = .current) -> ChargeLog {
         var log = ChargeLog(id: "ios|iPhone14,8|Peter’s iP", name: "Peter’s iP…", kind: .iPhone, model: "iPhone14,8")
         simulate(&log, now: now, calendar: calendar, factors: [0.9, 1.1, 1.0, 1.3, 0.8, 1.0, 1.2, 1.15],
                  step: 30, hours: 7...23, drainPerHour: 5, charging: 18..<19, chargePerHour: 30,

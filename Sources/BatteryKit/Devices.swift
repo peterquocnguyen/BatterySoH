@@ -58,9 +58,14 @@ public struct DeviceBattery: Codable, Equatable, Sendable, Identifiable {
     /// it can lag well behind the device, and there is no charging state. UIs show "≈ 75%",
     /// a neutral bar and no charging claims.
     public var isApproximate: Bool
-    /// When this app first saw the current approximate `percent` (so the UI can say
-    /// "since 12:03"). Set by the app, carried across updates by `HotspotParser.carryLevelSince`.
-    public var levelSince: Date?
+    /// How current `percent` is. Exact reads (USB / Wi-Fi sync): when the read was taken.
+    /// Approximate (Instant Hotspot): when this app first saw the current advertised value
+    /// ("since 12:03"), carried across updates by `HotspotParser.carryUpdatedAt`.
+    /// nil for accessories (read on every UI tick).
+    public var updatedAt: Date?
+    /// True when the device is not connected and this is its last exact reading, kept by
+    /// `LastExactReadingStore` (see `lastKnown`). UIs fade it and say "not connected".
+    public var isLastKnown: Bool
 
     /// Full / design, percent with one decimal.
     public var healthPercent: Double? {
@@ -73,7 +78,7 @@ public struct DeviceBattery: Codable, Equatable, Sendable, Identifiable {
                 isCharging: Bool = false, externalConnected: Bool = false, parts: [Part] = [],
                 fullChargeCapacityMAh: Int? = nil, designCapacityMAh: Int? = nil,
                 cycleCount: Int? = nil, temperatureC: Double? = nil, note: String? = nil,
-                isApproximate: Bool = false, levelSince: Date? = nil) {
+                isApproximate: Bool = false, updatedAt: Date? = nil, isLastKnown: Bool = false) {
         self.id = id
         self.name = name
         self.kind = kind
@@ -90,7 +95,26 @@ public struct DeviceBattery: Codable, Equatable, Sendable, Identifiable {
         self.temperatureC = temperatureC
         self.note = note
         self.isApproximate = isApproximate
-        self.levelSince = levelSince
+        self.updatedAt = updatedAt
+        self.isLastKnown = isLastKnown
+    }
+
+    /// iPhone, iPad or iPod (the devices MobileDevice and Instant Hotspot report).
+    public var isIOSDevice: Bool { [.iPhone, .iPad, .iPod].contains(kind) }
+
+    /// An exact reading worth remembering once the device disconnects.
+    public var isExactReading: Bool { isIOSDevice && !isApproximate && !isLastKnown && percent != nil }
+
+    /// This reading as the last exact one of a device that is no longer connected: no
+    /// connection, no charging claim (the charger may be long gone), no trust note.
+    public var lastKnown: DeviceBattery {
+        var d = self
+        d.isLastKnown = true
+        d.connection = nil
+        d.isCharging = false
+        d.externalConnected = false
+        d.note = nil
+        return d
     }
 }
 
@@ -217,7 +241,7 @@ public enum AccessoryParser {
 public enum MobileBatteryParser {
     public static func parse(id: String, lockdown: [String: Any], battery: [String: Any],
                              registry: [String: Any]?, connection: DeviceBattery.Connection?,
-                             note: String? = nil) -> DeviceBattery {
+                             note: String? = nil, updatedAt: Date? = nil) -> DeviceBattery {
         let deviceClass = BatteryParser.string(lockdown["DeviceClass"])
         let kind = kind(deviceClass: deviceClass, productType: BatteryParser.string(lockdown["ProductType"]))
         let name = BatteryParser.string(lockdown["DeviceName"]) ?? deviceClass ?? "iOS device"
@@ -244,7 +268,7 @@ public enum MobileBatteryParser {
             fullChargeCapacityMAh: full, designCapacityMAh: design,
             cycleCount: BatteryParser.int(reg["CycleCount"]) ?? BatteryParser.int(batteryData["CycleCount"]),
             temperatureC: registry.flatMap(BatteryParser.temperature),
-            note: note)
+            note: note, updatedAt: updatedAt)
     }
 
     static func kind(deviceClass: String?, productType: String?) -> DeviceBattery.Kind {
@@ -264,4 +288,102 @@ public enum MobileBatteryParser {
         default: return "iOS \(version)"
         }
     }
+}
+
+// MARK: - Last exact reading per device
+
+/// The last exact (USB / Wi-Fi sync) reading of each iPhone / iPad, so a device that
+/// disconnects (phone asleep, off the network) keeps showing its real level — faded, "not
+/// connected" — instead of the far older Instant Hotspot value. One small JSON file,
+/// `~/Library/Application Support/BatteryBuddy/last-exact-readings.json`, written atomically.
+///
+/// Cheap by design: a read only writes the file when something other than the time changed,
+/// or `writeInterval` has passed; `flush()` writes the rest (on disconnect and on quit).
+public final class LastExactReadingStore {
+    public let fileURL: URL
+    /// By device id (UDID).
+    public private(set) var readings: [String: DeviceBattery] = [:]
+    private var lastWrite = Date.distantPast
+    private var dirty = false
+
+    public static let writeInterval: TimeInterval = 5 * 60
+
+    public static var defaultURL: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return base.appendingPathComponent("BatteryBuddy", isDirectory: true)
+            .appendingPathComponent("last-exact-readings.json")
+    }
+
+    public init(fileURL: URL = LastExactReadingStore.defaultURL) {
+        self.fileURL = fileURL
+        load()
+    }
+
+    /// Remembered readings, by name.
+    public var devices: [DeviceBattery] {
+        readings.values.sorted { a, b in
+            a.name.localizedStandardCompare(b.name) == .orderedAscending || (a.name == b.name && a.id < b.id)
+        }
+    }
+
+    private struct File: Codable {
+        var version = 1
+        var devices: [DeviceBattery]
+    }
+
+    public func load() {
+        readings = [:]
+        guard let data = try? Data(contentsOf: fileURL),
+              let file = try? Self.decoder.decode(File.self, from: data) else { return }
+        for d in file.devices where d.isExactReading { readings[d.id] = d }
+    }
+
+    /// Keeps every exact reading in `devices` (others are ignored). Returns true when the
+    /// file was written.
+    @discardableResult
+    public func remember(_ devices: [DeviceBattery], now: Date = Date()) throws -> Bool {
+        var changed = false
+        for d in devices where d.isExactReading {
+            let old = readings[d.id]
+            guard old != d else { continue }
+            readings[d.id] = d
+            dirty = true
+            if !Self.sameExceptTime(old, d) { changed = true }
+        }
+        guard dirty, changed || now.timeIntervalSince(lastWrite) >= Self.writeInterval else { return false }
+        try write(now: now)
+        return true
+    }
+
+    /// Writes readings that are only in memory.
+    public func flush(now: Date = Date()) throws {
+        guard dirty else { return }
+        try write(now: now)
+    }
+
+    private func write(now: Date) throws {
+        try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Self.encoder.encode(File(devices: devices)).write(to: fileURL, options: .atomic)
+        lastWrite = now
+        dirty = false
+    }
+
+    private static func sameExceptTime(_ a: DeviceBattery?, _ b: DeviceBattery) -> Bool {
+        guard var a else { return false }
+        a.updatedAt = b.updatedAt
+        return a == b
+    }
+
+    static let encoder: JSONEncoder = {
+        let e = JSONEncoder()
+        e.dateEncodingStrategy = .secondsSince1970
+        e.outputFormatting = [.sortedKeys]
+        return e
+    }()
+
+    static let decoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .secondsSince1970
+        return d
+    }()
 }

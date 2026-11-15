@@ -107,17 +107,37 @@ struct ChargeLogStoreTests {
         #expect(ChargeLogStore(directory: dir).logs["mac"]?.samples.first?.until == utcDate(2026, 11, 15, 9, 5))
     }
 
-    @Test func exactReadingRenamesHotspotLog() throws {
+    @Test func approximateSamplesAreNotLogged() throws {
         let store = ChargeLogStore(directory: dir)
         let key = "ios|iPhone14,8|Peter’s iP"
-        try store.record(key: key, name: "Peter’s iP…", kind: .iPhone, model: "iPhone14,8",
-                         sample: sample(15, 9, 0, 75, approx: true), now: utcDate(2026, 11, 15, 9))
-        try store.record(key: key, name: "Other", kind: .iPhone, model: "iPhone14,8",
-                         sample: sample(15, 9, 30, 74, approx: true), now: utcDate(2026, 11, 15, 9, 30))
-        #expect(store.logs[key]?.name == "Peter’s iP…")
+        #expect(try store.record(key: key, name: "Peter’s iP…", kind: .iPhone, model: "iPhone14,8",
+                                 sample: sample(15, 9, 0, 75, approx: true), now: utcDate(2026, 11, 15, 9)) == .ignored)
+        #expect(store.logs[key] == nil)
+        #expect(!FileManager.default.fileExists(atPath: store.fileURL(for: key).path))
         try store.record(key: key, name: "Peter’s iPhone", kind: .iPhone, model: "iPhone14,8",
                          sample: sample(15, 10, 0, 91, charging: true), now: utcDate(2026, 11, 15, 10))
         #expect(store.logs[key]?.name == "Peter’s iPhone")
+        #expect(store.logs[key]?.samples.count == 1)
+    }
+
+    @Test func loadPrunesApproximateSamplesFromOlderBuilds() throws {
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let mixedKey = "ios|iPhone14,8|Peter’s iP", hotspotKey = "ios|iPhone12,1|Kid"
+        let mixed = ChargeLog(id: mixedKey, name: "Peter’s iP", kind: .iPhone, model: "iPhone14,8",
+                              samples: [sample(15, 9, 0, 75, approx: true), sample(15, 10, 0, 91, charging: true)])
+        let hotspotOnly = ChargeLog(id: hotspotKey, name: "Kid", kind: .iPhone, model: "iPhone12,1",
+                                    samples: [sample(15, 9, 0, 40, approx: true)])
+        let writer = ChargeLogStore(directory: dir)
+        try ChargeLogStore.encoder.encode(mixed).write(to: writer.fileURL(for: mixedKey))
+        try ChargeLogStore.encoder.encode(hotspotOnly).write(to: writer.fileURL(for: hotspotKey))
+
+        let store = ChargeLogStore(directory: dir)
+        #expect(store.logs[mixedKey]?.samples.map(\.percent) == [91])
+        #expect(store.logs[hotspotKey] == nil)
+        #expect(!FileManager.default.fileExists(atPath: store.fileURL(for: hotspotKey).path))
+        // Pruned on disk too.
+        let data = try Data(contentsOf: store.fileURL(for: mixedKey))
+        #expect(try ChargeLogStore.decoder.decode(ChargeLog.self, from: data).samples.count == 1)
     }
 }
 
@@ -153,12 +173,13 @@ struct ChargeAnalysisTests {
         #expect(u.covered == 3600)
     }
 
-    @Test func switchBetweenExactAndAdvertisedIsUnknown() {
+    @Test func approximateSamplesAreIgnored() {
+        // The hotspot levels (75, 73) would add a 16-point "drop"; only 91 → 90 is real.
         let samples = [sample(15, 9, 0, 91, charging: true), sample(15, 9, 30, 75, approx: true),
                        sample(15, 10, 0, 73, approx: true), sample(15, 10, 30, 90, charging: false)]
         let u = ChargeAnalysis.usage(samples, from: utcDate(2026, 11, 15, 0), to: utcDate(2026, 11, 16, 0))
-        #expect(u.used == 2)
-        #expect(u.covered == 1800)
+        #expect(u.used == 1)
+        #expect(u.covered == 1.5 * 3600)
     }
 
     /// Each past day: 100 → 80 by 11:00, → 60 by 17:00; today: 100 → 90 by 11:00.
@@ -185,7 +206,6 @@ struct ChargeAnalysisTests {
         #expect(s.averageByCutoff == 20)
         #expect(s.daysWithData == 7)
         #expect(s.comparison == .less)
-        #expect(!s.usesApproximateData)
     }
 
     @Test func dayWithoutEnoughCoverageIsLeftOut() {
@@ -233,11 +253,19 @@ struct ChargeAnalysisTests {
         #expect(ChargeAnalysis.sentence(.aboutTheSame, time: "12:07") == "You’re using about as much battery today as you usually do by 12:07.")
     }
 
-    @Test func approximateSamplesAreFlagged() {
-        let samples = [sample(15, 9, 0, 80, approx: true), sample(15, 9, 30, 78, approx: true)]
-        let s = ChargeAnalysis.summary(samples, now: utcDate(2026, 11, 15, 12), calendar: utcCalendar)
-        #expect(s.usesApproximateData)
-        #expect(s.today?.usedByCutoff == 2)
+    @Test func summaryIgnoresApproximateSamples() {
+        let now = utcDate(2026, 11, 15, 12)
+        let hotspotOnly = [sample(15, 9, 0, 80, approx: true), sample(15, 9, 30, 78, approx: true)]
+        let s = ChargeAnalysis.summary(hotspotOnly, now: now, calendar: utcCalendar)
+        #expect(!s.hasAnyData)
+        #expect(s.today?.usedByCutoff == 0)
+        // Hotspot levels mixed into an exact week change nothing: days, averages, sentence.
+        let exact = Self.week()
+        var mixed = exact
+        for d in 8...15 { mixed.append(sample(d, 10, 30, 40, approx: true)) }
+        mixed.sort { $0.date < $1.date }
+        #expect(ChargeAnalysis.summary(mixed, now: now, calendar: utcCalendar)
+                == ChargeAnalysis.summary(exact, now: now, calendar: utcCalendar))
     }
 
     @Test func syntheticWeeksCompareLikeTheReference() {
@@ -247,7 +275,9 @@ struct ChargeAnalysisTests {
         #expect(mac.comparison == .less)
         let phone = ChargeAnalysis.summary(ChargeLog.sampleIPhoneWeek(now: now).samples, now: now)
         #expect(phone.daysWithData == 7)
-        #expect(phone.usesApproximateData)
+        #expect(ChargeLog.sampleIPhoneWeek(now: now).samples.allSatisfy { !$0.isApproximate })
+        let old = ChargeAnalysis.summary(ChargeLog.sampleApproximateIPhoneWeek(now: now).samples, now: now)
+        #expect(!old.hasAnyData)
     }
 }
 
@@ -275,23 +305,38 @@ struct ApproximateLevelTests {
         let other = try #require(HotspotParser.parse(identifier: "o", name: "Kid", model: "iPhone12,1", batteryLife: 40))
         let cabled = DeviceBattery(id: "u", name: "Peter’s iPhone", kind: .iPhone, connection: .wifi,
                                    model: "iPhone14,8", percent: 91, isCharging: true)
-        let merged = HotspotParser.merge(cabled: [cabled], nearby: [nearby, other])
+        let merged = HotspotParser.merge(connected: [cabled], nearby: [nearby, other])
         #expect(merged.map(\.percent) == [91, 40])
         #expect(merged.map(\.isApproximate) == [false, true])
         #expect(merged[0].isCharging)
-        #expect(HotspotParser.merge(cabled: [], nearby: [nearby]).first?.isApproximate == true)
+        #expect(HotspotParser.merge(connected: [], nearby: [nearby]).first?.isApproximate == true)
     }
 
-    @Test func levelSinceIsKeptWhileThePercentIsUnchanged() throws {
+    @Test func hotspotUpdatedAtIsFirstSeenOfTheCurrentValue() throws {
         let t0 = utcDate(2026, 11, 15, 12, 3), t1 = utcDate(2026, 11, 15, 12, 10)
         let first = try #require(HotspotParser.parse(identifier: "n", name: "Peter’s iP", model: "iPhone14,8", batteryLife: 75))
-        let stamped = HotspotParser.carryLevelSince(previous: [], current: [first], now: t0)
-        #expect(stamped.first?.levelSince == t0)
-        let same = HotspotParser.carryLevelSince(previous: stamped, current: [first], now: t1)
-        #expect(same.first?.levelSince == t0)
+        let stamped = HotspotParser.carryUpdatedAt(previous: [], current: [first], now: t0)
+        #expect(stamped.first?.updatedAt == t0)
+        let same = HotspotParser.carryUpdatedAt(previous: stamped, current: [first], now: t1)
+        #expect(same.first?.updatedAt == t0)
         var changed = first
         changed.percent = 80
-        #expect(HotspotParser.carryLevelSince(previous: same, current: [changed], now: t1).first?.levelSince == t1)
+        #expect(HotspotParser.carryUpdatedAt(previous: same, current: [changed], now: t1).first?.updatedAt == t1)
+    }
+
+    @Test func onlyExactReadingsAreLogged() throws {
+        let t = utcDate(2026, 11, 15, 12)
+        let hotspot = try #require(HotspotParser.parse(identifier: "n", name: "Peter’s iP", model: "iPhone14,8", batteryLife: 75))
+        #expect(ChargeLog.exactSample(for: hotspot, at: t) == nil)
+        let wifi = DeviceBattery(id: "u", name: "Peter’s iP", kind: .iPhone, connection: .wifi,
+                                 model: "iPhone14,8", percent: 91, isCharging: true, updatedAt: t)
+        let entry = try #require(ChargeLog.exactSample(for: wifi, at: t))
+        #expect(entry.key == "ios|iPhone14,8|Peter’s iP")
+        #expect(entry.sample == ChargeSample(date: t, percent: 91, isCharging: true))
+        // A remembered reading is old data, not a new reading; untrusted devices have no level.
+        #expect(ChargeLog.exactSample(for: wifi.lastKnown, at: t) == nil)
+        #expect(ChargeLog.exactSample(for: .sampleIPadUntrusted, at: t) == nil)
+        #expect(ChargeLog.exactSample(for: .sampleMouse, at: t) == nil)
     }
 
     @Test func advertisedStemCutsAtTwelveBytes() {

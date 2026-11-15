@@ -112,40 +112,51 @@ struct WindowMeterBar: View {
 
 extension View {
     /// Native glass button on macOS 26+, else the custom-drawn pill (which also renders headlessly).
-    func windowPillButton() -> some View { modifier(WindowPillButtonModifier()) }
+    /// `prominent`: accent-filled, for the one action a card is about.
+    func windowPillButton(prominent: Bool = false) -> some View {
+        modifier(WindowPillButtonModifier(prominent: prominent))
+    }
 }
 
 private struct WindowPillButtonModifier: ViewModifier {
+    var prominent: Bool
     @Environment(\.renderHarness) private var renderHarness
 
     func body(content: Content) -> some View {
         if !renderHarness, #available(macOS 26, *) {
-            content.buttonStyle(.glass)
+            if prominent {
+                content.buttonStyle(.glassProminent)
+            } else {
+                content.buttonStyle(.glass)
+            }
         } else {
-            content.buttonStyle(WindowPillButtonStyle())
+            content.buttonStyle(WindowPillButtonStyle(prominent: prominent))
         }
     }
 }
 
 /// Bordered rounded button drawn by SwiftUI (renders headlessly, unlike `.bordered`).
 struct WindowPillButtonStyle: ButtonStyle {
+    var prominent = false
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.colorScheme) private var scheme
 
     func makeBody(configuration: Configuration) -> some View {
         let shape = RoundedRectangle(cornerRadius: 6, style: .continuous)
         configuration.label
-            .font(.callout.weight(.medium))
-            .padding(.horizontal, 10)
+            .font(.callout.weight(prominent ? .semibold : .medium))
+            .foregroundStyle(prominent ? AnyShapeStyle(Color.white) : AnyShapeStyle(.primary))
+            .padding(.horizontal, prominent ? 12 : 10)
             .padding(.vertical, 4)
             .background(shape.fill(fill(pressed: configuration.isPressed)))
-            .overlay(shape.strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+            .overlay(shape.strokeBorder(prominent ? Color.clear : Color(nsColor: .separatorColor), lineWidth: 0.5))
             .shadow(color: .black.opacity(scheme == .dark ? 0 : 0.06), radius: 0.5, y: 0.5)
             .opacity(isEnabled ? 1 : 0.45)
             .contentShape(shape)
     }
 
     private func fill(pressed: Bool) -> Color {
+        if prominent { return Color.accentColor.opacity(pressed ? 0.8 : 1) }
         if pressed { return Color.primary.opacity(0.14) }
         return scheme == .dark ? Color.white.opacity(0.10) : Color(nsColor: .controlBackgroundColor)
     }

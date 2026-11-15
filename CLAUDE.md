@@ -29,7 +29,9 @@ Native macOS menu bar battery monitor. Spec: `docs/SPEC.md` (features F1–F11).
   Other devices (F10): `DeviceBattery` + pure `AccessoryParser`/`MobileBatteryParser` in
   `Devices.swift`, `AccessoryPowerSources` in `Readers.swift`, private MobileDevice code only in
   `MobileDevices.swift`, private Sharing (Instant Hotspot) code only in `NearbyDevices.swift`
-  (its levels are `isApproximate`). Insights (F11): `ChargeLog`/`ChargeLogStore` (8-day
+  (its levels are `isApproximate`); `LastExactReadingStore` (Devices.swift) keeps each
+  iPhone / iPad's last exact reading for when it disconnects; `HotspotParser.merge` orders
+  connected > remembered > hotspot. Insights (F11, exact samples only): `ChargeLog`/`ChargeLogStore` (8-day
   per-device charge samples) and pure `ChargeAnalysis` (used per day, averages, comparison
   sentence) in `ChargeLog.swift`.
 - `Sources/BatteryBuddy` — SwiftUI app. `BatteryModel` (@Observable, owns refresh policy),

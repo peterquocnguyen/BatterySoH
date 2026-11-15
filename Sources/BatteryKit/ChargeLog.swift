@@ -10,9 +10,11 @@ public struct ChargeSample: Codable, Equatable, Sendable {
     public var until: Date?
     /// 0–100, what the device shows.
     public var percent: Double
-    /// nil when the source doesn't say (Instant Hotspot).
+    /// nil when the source doesn't say.
     public var isCharging: Bool?
-    /// Advertised level (Instant Hotspot), not a live read. Can lag well behind the device.
+    /// Advertised level (Instant Hotspot), not a live read. No longer recorded: older builds
+    /// logged these, so they can still be on disk; `ChargeLogStore.load` drops them and the
+    /// analysis ignores them.
     public var isApproximate: Bool
 
     /// End of the run (the last time this reading was seen).
@@ -78,11 +80,19 @@ public struct ChargeLog: Codable, Equatable, Sendable, Identifiable {
         self.samples = samples
     }
 
-    /// Log key for an iPhone / iPad, shared by its cabled and its Instant Hotspot readings:
-    /// model plus the advertised name stem. nil for accessories.
+    /// Log key for an iPhone / iPad: model plus the advertised name stem, so the device's
+    /// cabled / Wi-Fi reads and its Instant Hotspot entry map to the same log. nil for accessories.
     public static func key(for device: DeviceBattery) -> String? {
-        guard [.iPhone, .iPad, .iPod].contains(device.kind) else { return nil }
+        guard device.isIOSDevice else { return nil }
         return "ios|\(device.model ?? device.kind.rawValue)|\(HotspotParser.advertisedStem(device.name))"
+    }
+
+    /// The sample to log for a device reading, or nil when it isn't logged: Insights uses exact
+    /// data only, so Instant Hotspot (approximate) levels, remembered last readings and devices
+    /// without a level are skipped.
+    public static func exactSample(for device: DeviceBattery, at date: Date) -> (key: String, sample: ChargeSample)? {
+        guard device.isExactReading, let key = key(for: device), let percent = device.percent else { return nil }
+        return (key, ChargeSample(date: date, percent: Double(percent), isCharging: device.isCharging))
     }
 
     public enum RecordResult: Equatable, Sendable {
@@ -154,7 +164,17 @@ public final class ChargeLogStore {
         let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
         for file in files where file.pathExtension == "json" {
             guard let data = try? Data(contentsOf: file),
-                  let log = try? Self.decoder.decode(ChargeLog.self, from: data) else { continue }
+                  var log = try? Self.decoder.decode(ChargeLog.self, from: data) else { continue }
+            // Approximate (Instant Hotspot) samples from older builds: Insights uses exact data
+            // only, so prune them once. A log that had nothing else is removed.
+            if log.samples.contains(where: \.isApproximate) {
+                log.samples.removeAll(where: \.isApproximate)
+                if log.samples.isEmpty {
+                    try? FileManager.default.removeItem(at: file)
+                    continue
+                }
+                try? Self.encoder.encode(log).write(to: file, options: .atomic)
+            }
             logs[log.id] = log
         }
     }
@@ -166,14 +186,15 @@ public final class ChargeLogStore {
 
     public func fileURL(for key: String) -> URL { directory.appendingPathComponent(Self.fileName(for: key)) }
 
-    /// Records one reading for `key`, creating the log on first use. `name` replaces the
-    /// stored name for exact readings (full device name) and for new logs.
+    /// Records one exact reading for `key`, creating the log on first use; `name` replaces the
+    /// stored name. Approximate samples are not logged (`.ignored`).
     @discardableResult
     public func record(key: String, name: String, kind: DeviceBattery.Kind?, model: String?,
                        sample: ChargeSample, now: Date = Date()) throws -> ChargeLog.RecordResult {
+        guard !sample.isApproximate else { return .ignored }
         var log = logs[key] ?? ChargeLog(id: key, name: name, kind: kind, model: model)
         var metadataChanged = false
-        if !sample.isApproximate || log.samples.isEmpty, log.name != name {
+        if log.name != name {
             log.name = name
             metadataChanged = true
         }
@@ -268,15 +289,14 @@ public struct UsageSummary: Equatable, Sendable {
     public var comparison: UsageComparison
     /// Past days that counted towards the averages.
     public var daysWithData: Int
-    /// Any approximate (Instant Hotspot) samples in the window: usage is rough.
-    public var usesApproximateData: Bool
 
     public var today: UsageDay? { days.last }
     public var hasAnyData: Bool { days.contains { $0.covered > 0 } }
 }
 
-/// Pure analysis over `ChargeSample`s. Battery **used** = sum of percentage drops between
-/// consecutive readings; rises (charging) count as zero; gaps longer than `maxGap` are unknown.
+/// Pure analysis over exact `ChargeSample`s (approximate ones are ignored). Battery **used** =
+/// sum of percentage drops between consecutive readings; rises (charging) count as zero; gaps
+/// longer than `maxGap` are unknown.
 /// A drop between two readings is spread evenly over the time between them, so it splits
 /// correctly across midnight and the time-of-day cutoff.
 public enum ChargeAnalysis {
@@ -295,6 +315,7 @@ public enum ChargeAnalysis {
     /// Percentage points used and seconds covered within `[from, to)`.
     public static func usage(_ samples: [ChargeSample], from: Date, to: Date) -> (used: Double, covered: TimeInterval) {
         guard to > from else { return (0, 0) }
+        let samples = samples.contains(where: \.isApproximate) ? samples.filter { !$0.isApproximate } : samples
         var used = 0.0
         var covered: TimeInterval = 0
         func overlap(_ a: Date, _ b: Date) -> TimeInterval {
@@ -307,9 +328,7 @@ public enum ChargeAnalysis {
             let next = samples[i + 1]
             let t0 = s.end, t1 = next.date
             let dt = t1.timeIntervalSince(t0)
-            // A switch between exact and advertised readings says nothing about real use
-            // (the advertised level can be hours old).
-            guard dt >= 0, dt <= maxGap, s.isApproximate == next.isApproximate else { continue }
+            guard dt >= 0, dt <= maxGap else { continue }
             let drop = max(0, s.percent - next.percent)
             if dt == 0 {
                 if t0 >= from, t0 < to { used += drop }
@@ -324,7 +343,7 @@ public enum ChargeAnalysis {
 
     /// Per-day usage for the previous `comparedDays` days and today, averages, and the comparison.
     public static func summary(_ samples: [ChargeSample], now: Date, calendar: Calendar = .current) -> UsageSummary {
-        let sorted = samples.sorted { $0.date < $1.date }
+        let sorted = samples.filter { !$0.isApproximate }.sorted { $0.date < $1.date }
         let todayStart = calendar.startOfDay(for: now)
         let time = calendar.dateComponents([.hour, .minute, .second], from: now)
         var days: [UsageDay] = []
@@ -344,14 +363,12 @@ public enum ChargeAnalysis {
         let enough = past.count >= minComparisonDays
         let avgAll = enough ? past.map(\.usedAllDay).reduce(0, +) / Double(past.count) : nil
         let avgCut = enough ? past.map(\.usedByCutoff).reduce(0, +) / Double(past.count) : nil
-        let windowStart = days.first?.start ?? todayStart
-        let approximate = sorted.contains { $0.isApproximate && $0.end >= windowStart }
         var comparison = UsageComparison.notEnoughData
         if let avgCut, let today = days.last, today.covered > 0 {
             comparison = compare(today: today.usedByCutoff, average: avgCut)
         }
         return UsageSummary(days: days, now: now, averageAllDay: avgAll, averageByCutoff: avgCut,
-                            comparison: comparison, daysWithData: past.count, usesApproximateData: approximate)
+                            comparison: comparison, daysWithData: past.count)
     }
 
     public static func compare(today: Double, average: Double) -> UsageComparison {
