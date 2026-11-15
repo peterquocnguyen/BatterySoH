@@ -15,6 +15,11 @@ enum MenuBarGlyph {
         /// Charged fraction, quantised to whole percent so images can be cached.
         var percent: Int
         var showsBolt: Bool
+        /// Low Power Mode: yellow fill with dark content, like macOS's own item. Not a template
+        /// image then (template images can't carry colour), so the track needs the appearance.
+        var lowPower: Bool = false
+        /// Menu bar appearance, used only when `lowPower` (template images tint themselves).
+        var darkMenuBar: Bool = false
         /// 1 for the menu bar; larger to inspect the glyph in the render gallery.
         var pointScale: CGFloat = 1
     }
@@ -31,7 +36,7 @@ enum MenuBarGlyph {
             draw(style, in: ctx)
             return true
         }
-        image.isTemplate = true
+        image.isTemplate = !style.lowPower
         if cache.count > 64 { cache.removeAll() }
         cache[style] = image
         return image
@@ -45,7 +50,11 @@ enum MenuBarGlyph {
     /// Alpha of the uncharged part of the pill and of the nub.
     static let trackAlpha: CGFloat = 0.38
 
+    /// macOS's Low Power yellow in the menu bar.
+    static let lowPowerYellow = CGColor(srgbRed: 1.0, green: 0.80, blue: 0.04, alpha: 1)
+
     static func draw(_ style: Style, in ctx: CGContext) {
+        if style.lowPower { return drawLowPower(style, in: ctx) }
         let black = CGColor(gray: 0, alpha: 1)
         let pillPath = CGPath(roundedRect: pill, cornerWidth: pillRadius, cornerHeight: pillRadius, transform: nil)
         let fraction = min(1, max(0, CGFloat(style.percent) / 100))
@@ -78,16 +87,43 @@ enum MenuBarGlyph {
 
         // Terminal nub: half-capsule on the right.
         ctx.setFillColor(black.copy(alpha: fraction >= 1 ? 1 : trackAlpha)!)
-        let r = nub.width
-        let nubPath = CGMutablePath()
-        nubPath.move(to: CGPoint(x: nub.minX, y: nub.minY))
-        nubPath.addLine(to: CGPoint(x: nub.maxX - r, y: nub.minY))
-        nubPath.addArc(tangent1End: CGPoint(x: nub.maxX, y: nub.minY), tangent2End: CGPoint(x: nub.maxX, y: nub.midY), radius: r)
-        nubPath.addArc(tangent1End: CGPoint(x: nub.maxX, y: nub.maxY), tangent2End: CGPoint(x: nub.maxX - r, y: nub.maxY), radius: r)
-        nubPath.addLine(to: CGPoint(x: nub.minX, y: nub.maxY))
-        nubPath.closeSubpath()
-        ctx.addPath(nubPath)
+        ctx.addPath(nubPath())
         ctx.fillPath()
+    }
+
+    /// Coloured variant: yellow charged part, appearance-tinted track, dark number and bolt
+    /// drawn solid over both (as macOS does in Low Power Mode).
+    static func drawLowPower(_ style: Style, in ctx: CGContext) {
+        let ink = CGColor(gray: style.darkMenuBar ? 1 : 0, alpha: trackAlpha)
+        let pillPath = CGPath(roundedRect: pill, cornerWidth: pillRadius, cornerHeight: pillRadius, transform: nil)
+        let fraction = min(1, max(0, CGFloat(style.percent) / 100))
+        let filled = CGRect(x: pill.minX, y: pill.minY, width: pill.width * fraction, height: pill.height)
+
+        ctx.saveGState()
+        ctx.addPath(pillPath)
+        ctx.clip()
+        ctx.setFillColor(ink)
+        ctx.fill(pill)
+        ctx.setFillColor(lowPowerYellow)
+        ctx.fill(filled)
+        Content(style).draw(in: ctx, color: CGColor(gray: 0.08, alpha: 1))
+        ctx.restoreGState()
+
+        ctx.setFillColor(fraction >= 1 ? lowPowerYellow : ink)
+        ctx.addPath(nubPath())
+        ctx.fillPath()
+    }
+
+    static func nubPath() -> CGPath {
+        let r = nub.width
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: nub.minX, y: nub.minY))
+        path.addLine(to: CGPoint(x: nub.maxX - r, y: nub.minY))
+        path.addArc(tangent1End: CGPoint(x: nub.maxX, y: nub.minY), tangent2End: CGPoint(x: nub.maxX, y: nub.midY), radius: r)
+        path.addArc(tangent1End: CGPoint(x: nub.maxX, y: nub.maxY), tangent2End: CGPoint(x: nub.maxX - r, y: nub.maxY), radius: r)
+        path.addLine(to: CGPoint(x: nub.minX, y: nub.maxY))
+        path.closeSubpath()
+        return path
     }
 
     /// Number and bolt laid out centred in the pill.
@@ -129,8 +165,8 @@ enum MenuBarGlyph {
             }
         }
 
-        func draw(in ctx: CGContext) {
-            ctx.setFillColor(CGColor(gray: 0, alpha: 1))
+        func draw(in ctx: CGContext, color: CGColor = CGColor(gray: 0, alpha: 1)) {
+            ctx.setFillColor(color)
             if let line {
                 ctx.textMatrix = .identity
                 // Optical centre: digits sit on the baseline, so centre their cap height.

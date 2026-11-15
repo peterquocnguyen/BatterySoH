@@ -36,6 +36,9 @@ final class BatteryModel {
     private(set) var chargeToFullRequestedAt: Date?
     /// Short-lived message for a failed control action (user cancel is not an error).
     private(set) var controlError: String?
+    /// macOS Low Power Mode is on (the menu bar glyph turns yellow, like the system's).
+    private(set) var isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
+    @ObservationIgnored private var lowPowerObserver: NSObjectProtocol?
     /// True when the password-free sudo rule for Energy Mode is installed.
     private(set) var isPasswordFreeEnergyMode = false
 
@@ -70,6 +73,13 @@ final class BatteryModel {
         }
         slowTimer = Timer.scheduledTimer(withTimeInterval: 15 * 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh() }
+        }
+        lowPowerObserver = NotificationCenter.default.addObserver(
+            forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
+                self?.refreshControls()
+            }
         }
     }
 

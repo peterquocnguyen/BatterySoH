@@ -12,6 +12,7 @@ struct MenuBarLabel: View {
     @AppStorage(SettingsKey.showTime) private var showTime = true
     @AppStorage(SettingsKey.showWatts) private var showWatts = false
     @AppStorage(SettingsKey.precisePercent) private var precisePercent = false
+    @Environment(\.colorScheme) private var menuBarScheme
 
     var body: some View {
         let snapshot = model.snapshot
@@ -19,7 +20,9 @@ struct MenuBarLabel: View {
                                precise: precisePercent)
         HStack(spacing: 4) {
             Image(nsImage: MenuBarGlyph.image(Self.glyphStyle(for: snapshot, showPercent: showPercent,
-                                                              precise: precisePercent)))
+                                                              precise: precisePercent,
+                                                              lowPower: model.isLowPowerMode,
+                                                              darkMenuBar: menuBarScheme == .dark)))
             if !title.isEmpty {
                 Text(title).monospacedDigit()
             }
@@ -36,12 +39,14 @@ struct MenuBarLabel: View {
 
     /// Percent inside the glyph unless hidden or replaced by the precise text; bolt on power.
     static func glyphStyle(for snapshot: BatterySnapshot?, showPercent: Bool, precise: Bool,
+                           lowPower: Bool = false, darkMenuBar: Bool = false,
                            pointScale: CGFloat = 1) -> MenuBarGlyph.Style {
         guard let snapshot else { return MenuBarGlyph.Style(percentText: nil, percent: 0, showsBolt: false,
                                                              pointScale: pointScale) }
         return MenuBarGlyph.Style(percentText: showPercent && !precise ? "\(snapshot.chargePercent)" : nil,
                                   percent: snapshot.chargePercent,
                                   showsBolt: snapshot.externalConnected,
+                                  lowPower: lowPower, darkMenuBar: lowPower && darkMenuBar,
                                   pointScale: pointScale)
     }
 
@@ -228,6 +233,7 @@ private struct PopoverMenuBarLabelGallery: View {
         var name: String
         var snapshot: BatterySnapshot?
         var showPercent = true
+        var lowPower = false
         var id: String { name }
     }
 
@@ -248,6 +254,9 @@ private struct PopoverMenuBarLabelGallery: View {
             Variant(name: "no-percent", snapshot: .sampleOnBattery, showPercent: false),
             Variant(name: "no-pct-chg", snapshot: mid, showPercent: false),
             Variant(name: "no-battery", snapshot: nil),
+            Variant(name: "low-power-80", snapshot: .sampleOnHold, lowPower: true),
+            Variant(name: "low-power-42", snapshot: low.with(percent: 42), lowPower: true),
+            Variant(name: "low-power-100", snapshot: full, lowPower: true),
         ]
         return list
     }
@@ -291,9 +300,10 @@ private struct PopoverMenuBarLabelGallery: View {
 
     private func strip(_ variant: Variant, scheme: ColorScheme) -> some View {
         let style = MenuBarLabel.glyphStyle(for: variant.snapshot, showPercent: variant.showPercent,
-                                            precise: false, pointScale: 3)
+                                            precise: false, lowPower: variant.lowPower,
+                                            darkMenuBar: scheme == .dark, pointScale: 3)
         return Image(nsImage: MenuBarGlyph.image(style))
-            .renderingMode(.template)
+            .renderingMode(variant.lowPower ? .original : .template)
             .foregroundStyle(scheme == .light ? Color.black : Color.white)
             .padding(.horizontal, 6)
             .frame(height: 66)
@@ -323,5 +333,13 @@ private struct PopoverMenuBarLabelGallery: View {
                 Text(title).font(.system(size: 13)).monospacedDigit()
             }
         }
+    }
+}
+
+private extension BatterySnapshot {
+    func with(percent: Int) -> BatterySnapshot {
+        var copy = self
+        copy.chargePercent = percent
+        return copy
     }
 }
