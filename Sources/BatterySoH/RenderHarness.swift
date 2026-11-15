@@ -27,6 +27,7 @@ enum RenderHarness {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
         let entries = PopoverRenderEntries.all() + WindowRenderEntries.all()
+        var failures = 0
         for entry in entries {
             for (suffix, scheme, appearance) in [
                 ("light", ColorScheme.light, NSAppearance.Name.aqua),
@@ -40,17 +41,20 @@ enum RenderHarness {
                         .environment(\.colorScheme, scheme)
                     let renderer = ImageRenderer(content: content)
                     renderer.scale = 2
-                    guard let cg = renderer.cgImage else {
-                        print("render failed: \(entry.name)")
+                    let url = dir.appendingPathComponent("\(entry.name)-\(suffix).png")
+                    guard let cg = renderer.cgImage,
+                        let png = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]),
+                        (try? png.write(to: url)) != nil
+                    else {
+                        FileHandle.standardError.write(Data("render failed: \(entry.name)-\(suffix)\n".utf8))
+                        failures += 1
                         return
                     }
-                    let rep = NSBitmapImageRep(cgImage: cg)
-                    let url = dir.appendingPathComponent("\(entry.name)-\(suffix).png")
-                    try? rep.representation(using: .png, properties: [:])?.write(to: url)
                     print(url.path)
                 }
             }
         }
-        exit(0)
+        // Non-zero exit so CI (scripts/ci/render-smoke.sh) fails when a view can't draw.
+        exit(failures == 0 ? 0 : 1)
     }
 }

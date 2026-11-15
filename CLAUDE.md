@@ -22,6 +22,23 @@ Native macOS menu bar battery monitor. Spec: `docs/SPEC.md` (features F1–F10).
 - `SOH_DEBUG_WINDOWS=1 "build/BatterySoH.app/Contents/MacOS/BatterySoH"` logs the popover and
   window view hierarchies to stderr once.
 
+## CI (`.github/workflows/ci.yml`)
+
+Merge gate is the single `CI gate` job; it passes only when every job below passed. Changes
+that touch only `*.md`, `docs/` or `LICENSE*` skip the build jobs and the gate still passes.
+
+- Repo checks (Linux): `scripts/ci/hygiene.py` (fixture serials are `TEST…`, no package
+  dependencies, SMC commands are reads only, Info.plist versions) and `shellcheck`.
+- Lint, build, test (`xcode-27` runner, Xcode 27.2): `swift format lint --strict`, build and
+  tests with `-warnings-as-errors`, BatteryKit line coverage ≥ `.github/coverage-floor`
+  (`scripts/ci/coverage.sh`), `scripts/ci/render-smoke.sh` (every `--render` entry draws), and
+  `sohstat --help`.
+- Release bundle: `scripts/bundle.sh --dmg`, codesign verify, SDK stamp ≥ 26.
+
+Before pushing run `scripts/lint.sh` (`--fix` reformats with `.swift-format`) and `swift test`.
+Raise `.github/coverage-floor` when coverage goes up; never lower it to get a PR through.
+`.github/rulesets/main.json` is the branch ruleset that makes `CI gate` required.
+
 ## Layout
 
 - `Sources/BatteryKit` — pure library. Models (`BatterySnapshot`, `PowerAdapter`), pure

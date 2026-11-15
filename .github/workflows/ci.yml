@@ -1,0 +1,146 @@
+name: CI
+
+# Quality gate for main. Every pull request must pass the "CI gate" job before merging
+# (make it the one required status check). Documentation-only changes (*.md, docs/,
+# LICENSE) skip the macOS jobs, and the gate still reports success for them.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  # Same Xcode as local development (CLAUDE.md: the app target needs Xcode, not CLT).
+  DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: filter
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT" == "workflow_dispatch" ]]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            scripts/ci/changes.sh "$BASE" "$HEAD_SHA"
+          fi
+
+  checks:
+    name: Repo checks
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Repository rules (fixtures, dependencies, SMC read-only, Info.plist)
+        run: python3 -I scripts/ci/hygiene.py
+      - name: shellcheck
+        run: shellcheck --version && shellcheck --severity=warning scripts/*.sh scripts/ci/*.sh
+
+  build-test:
+    name: Lint, build, test
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+      - name: swift format lint
+        run: swift format lint --strict --recursive Package.swift Sources Tests
+      - name: Build (warnings are errors)
+        run: swift build -Xswiftc -warnings-as-errors
+      - name: Test with coverage
+        run: swift test --enable-code-coverage -Xswiftc -warnings-as-errors
+      - name: Coverage floor (BatteryKit)
+        run: scripts/ci/coverage.sh
+      - name: Render smoke (every view, light + dark)
+        run: scripts/ci/render-smoke.sh build/render
+      - name: sohstat starts
+        run: swift run -Xswiftc -warnings-as-errors sohstat --help
+      - name: Upload renders
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: renders
+          path: build/render/*.png
+          if-no-files-found: ignore
+          retention-days: 7
+
+  bundle:
+    name: Release bundle
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build BatterySoH.app and DMG
+        run: scripts/bundle.sh --dmg
+      - name: Verify bundle
+        run: |
+          app=build/BatterySoH.app
+          codesign --verify --strict --verbose=2 "$app"
+          plutil -lint "$app/Contents/Info.plist"
+          # bundle.sh re-stamps the SDK version; without it there is no Liquid Glass on macOS 26+.
+          sdk="$(xcrun vtool -show-build "$app/Contents/MacOS/BatterySoH" | awk '/sdk/ {print $2; exit}')"
+          echo "LC_BUILD_VERSION sdk: $sdk"
+          [[ "${sdk%%.*}" -ge 26 ]] || { echo "error: SDK stamp $sdk, expected 26 or later" >&2; exit 1; }
+      - name: Upload DMG
+        uses: actions/upload-artifact@v7
+        with:
+          name: BatterySoH-dmg
+          path: build/BatterySoH-*.dmg
+          retention-days: 7
+
+  gate:
+    name: CI gate
+    if: always()
+    needs: [changes, checks, build-test, bundle]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every required job passed (or was skipped for a docs-only change)
+        env:
+          CODE: ${{ needs.changes.outputs.code }}
+          CHANGES: ${{ needs.changes.result }}
+          RESULTS: >-
+            checks=${{ needs.checks.result }}
+            build-test=${{ needs.build-test.result }}
+            bundle=${{ needs.bundle.result }}
+        run: |
+          echo "changes=$CHANGES code=$CODE $RESULTS"
+          [[ "$CHANGES" == "success" ]] || { echo "::error::change detection did not succeed"; exit 1; }
+          status=0
+          for pair in $RESULTS; do
+            job="${pair%%=*}"; result="${pair#*=}"
+            if [[ "$result" == "success" ]]; then continue; fi
+            if [[ "$result" == "skipped" && "$CODE" == "false" ]]; then continue; fi
+            echo "::error::$job: $result"
+            status=1
+          done
+          if [[ "$CODE" == "false" ]]; then echo "Documentation-only change: build and test skipped."; fi
+          exit $status
