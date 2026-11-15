@@ -56,8 +56,10 @@ struct MenuBarLabel: View {
                       precise: Bool = false) -> String {
         guard let snapshot else { return "" }
         var extra: String?
-        if showWatts {
-            if let w = snapshot.batteryPowerW, abs(w) >= 0.05 { extra = Fmt.watts(w, signed: true) }
+        // Watts only while charging; on battery (or draining on a charger) the time left is
+        // more useful than the discharge rate, so fall back to it.
+        if showWatts, let w = snapshot.batteryPowerW, w >= 0.05 {
+            extra = Fmt.watts(w, signed: true)
         } else if showTime, let minutes = snapshot.minutesRemaining, minutes > 0 {
             extra = Fmt.duration(minutes: minutes)
         }

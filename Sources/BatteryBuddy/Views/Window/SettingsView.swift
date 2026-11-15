@@ -24,11 +24,11 @@ struct SettingsView: View {
                 Toggle("Show precise percentage in menu bar", isOn: $precisePercent)
                     .disabled(!showPercent)
                 Toggle("Show time remaining", isOn: $showTime)
-                Toggle("Show watts instead of time", isOn: $showWatts)
+                Toggle("Show charging watts instead of time", isOn: $showWatts)
             } header: {
                 Text("Menu Bar")
             } footer: {
-                Text("Precise percentage is the battery gauge's raw value (e.g. 79.0%); macOS rounds it differently. Watts are the battery's charge or discharge rate.")
+                Text("Precise percentage is the battery gauge's raw value (e.g. 79.0%); macOS rounds it differently. Charging watts show only while the battery charges; on battery the time left shows instead.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
