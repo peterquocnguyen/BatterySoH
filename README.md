@@ -1,137 +1,107 @@
 # BatterySoH
 
-A small, native macOS menu bar app that shows what the battery and charger in your Mac are
-doing right now, and how the battery ages over time. SwiftUI, no dependencies.
+**Know your batteries at a glance.** BatterySoH lives in your Mac's menu bar and shows what
+your battery and charger are doing right now, how healthy the battery is, and when it needs
+service. It shows your iPhone, iPad, AirPods and other accessories too.
 
-Version 0.2.0 (build 3) · by Peter Quoc · formerly Battery Buddy
+Free, small, and private: no account, no ads, no internet connection.
 
-## Features
+<p align="center">
+  <img src="docs/images/popover.png" width="340" alt="BatterySoH menu bar panel while charging: 47 W into the battery, charger, Mac and battery with live power flow, battery health and condition">
+</p>
 
-- **Menu bar item**: charge percent plus time left, a charging bolt, or watts.
-- **Power flow popover**: charger → Mac → battery, with live watts on each arrow; adapter
-  wattage, active USB-C PD profile and every profile the charger offers; battery voltage,
-  current and temperature.
-- **Battery summary**: precise charge, health (full-charge vs design capacity), cycles
-  (`183 of 1000`), time to full or empty, and "charging on hold" when macOS is holding the
-  charge (optimized charging / charge limit).
-- **Window, device first**: a sidebar lists This Mac, then iPhone / iPad, then accessories,
-  each with its charge; select one to see its page. Every device appears once.
-- **This Mac page**: model, charge and health bars, capacities in mAh, cycles, temperature,
-  adapter, Low Power Mode, battery gauge details, and **History**: one sample per day, a health
-  chart, a monthly table (average health, max cycles) and CSV export.
-- **iPhone, iPad and accessory pages**: batteries of an iPhone or iPad connected by cable or Wi-Fi sync (charge, and
-  for trusted devices health, cycles and temperature), with how current each reading is
-  ("Updated 3 min ago"). When the connection drops, the last exact reading stays, faded and
-  marked "not connected". A phone never read exactly shows the level it shares over Personal
-  Hotspot (approximate and possibly hours old: marked `≈` and "Not live", with a setup card for
-  Wi-Fi sync), plus AirPods (left / right / case),
-  Magic Mouse, Keyboard, Trackpad and other Bluetooth accessories. Apple Watch isn't
-  available: watchOS shares its battery only with the paired iPhone.
-- **Settings › About**: version, author, privacy note, data-source credits, and **Copy Diagnostics**,
-  which puts a plain-text report (app and macOS version, Mac model, current battery and
-  charger readings) on the clipboard for bug reports.
-- **`sohstat` CLI**: the same data in the terminal, as text or JSON (`--devices` for other
-  devices).
+## What it shows you
 
-## Screenshots
+- **Right now, in the menu bar.** Charge percent and time left, or a bolt while charging.
+  Click it to see where the power goes: how many watts come from the charger, how much your Mac
+  uses, and how much goes into the battery.
+- **Is my battery healthy?** Battery health, charge cycles, temperature, and a clear
+  **Normal** or **Service Recommended**, the same verdict macOS gives in System Information.
+- **Does my iPhone need a new battery?** For an iPhone or iPad connected to your Mac, BatterySoH
+  shows its charge, health, cycles, and whether it likely needs service. For iPhone it also
+  shows whether iOS may be limiting **peak performance**.
+- **Everything else with a battery.** AirPods (left, right and case), Magic Mouse, Keyboard,
+  Trackpad and other Bluetooth accessories, all in one window.
+- **How it ages.** BatterySoH writes down your Mac's battery health once a day and draws it as
+  a chart, so you can see the trend over months.
+- **The same controls as macOS.** Switch Energy Mode (Automatic, Low Power, High Power) and
+  use "Charge to Full Now" when macOS is holding the charge at its limit.
 
-_Coming soon._ <!-- popover (charging), popover (on battery), window: This Mac page, window: iPhone page -->
+<p align="center">
+  <img src="docs/images/window-iphone.png" width="640" alt="BatterySoH window: a sidebar with This Mac, iPhones, AirPods and a mouse; the iPhone page shows its charge and a Normal battery condition">
+</p>
 
-## Requirements
+<p align="center">
+  <img src="docs/images/window-mac.png" width="420" alt="This Mac page: charge and health bars, Battery Condition Normal at 96 % maximum capacity, cycles 75 of 1000">
+  &nbsp;
+  <img src="docs/images/service-recommended.png" width="420" alt="An older iPhone page: Battery Condition Service Recommended at 74 % maximum capacity, peak performance may be limited">
+</p>
 
-- macOS 14 Sonoma or later, on a Mac with a battery. Apple Silicon is the primary target;
-  Intel is best effort.
-- To build the app: **Xcode** (Swift 6). The app uses SwiftUI macros such as `@State`, and
-  their compiler plugin ships only with Xcode, not with the Command Line Tools.
-- To build and test `BatteryKit` and `sohstat`, the Command Line Tools are enough
-  (see [Testing](#testing)).
+## Install
 
-## Build and run
+1. Download the latest **BatterySoH .dmg** from the
+   [Releases](https://github.com/peterquocnguyen/BatterySoH/releases) page.
+2. Open it and drag **BatterySoH** onto **Applications**.
+3. Open BatterySoH from Applications. Its icon appears in the menu bar; there is no Dock icon.
 
-```sh
-swift build                      # debug build of everything
-swift run sohstat                 # print the current battery snapshot
-swift run sohstat --json          # same, as JSON
-swift run sohstat --raw           # raw AppleSmartBattery registry as an XML plist
-swift run BatterySoH           # run the menu bar app from the build folder
-```
+The first time, macOS may say it can't check the app for malicious software, because
+BatterySoH isn't notarized by Apple yet. Open **System Settings › Privacy & Security**,
+scroll down, and click **Open Anyway** next to BatterySoH. You only need to do this once.
 
-## Testing
+**Requirements:** a Mac laptop with macOS 14 Sonoma or later. Apple silicon Macs are fully
+supported; Intel Macs should work but are tested less.
 
-```sh
-swift test                       # with Xcode selected
-scripts/test.sh                  # works with Xcode or Command Line Tools only
-```
+## Your iPhone and iPad
 
-Tests use Swift Testing (`import Testing`) and live in `Tests/BatteryKitTests`. Parser
-tests run against real `AppleSmartBattery` registry dumps in `Tests/BatteryKitTests/Fixtures`
-(serial numbers scrubbed) plus variants derived from them in code.
+- **Connect it by cable** once, unlock it and tap **Trust**. BatterySoH then shows its charge,
+  battery health and cycles.
+- **To see it without a cable:** with the iPhone connected, open Finder, select the iPhone and
+  turn on **Show this iPhone when on Wi-Fi**. From then on BatterySoH reads it whenever both
+  are on the same Wi-Fi.
+- **No cable at all?** An iPhone on the same Apple Account still shows a rough level, the one
+  it shares for Personal Hotspot. It can be out of date, so BatterySoH marks it with ≈.
+- When the iPhone disconnects, its last reading stays, marked "not connected".
 
-With only the Command Line Tools installed, plain `swift test` fails for two reasons:
-SwiftPM doesn't pass the Swift Testing macro plugin path (`plugin for module
-'TestingMacros' not found`), and the app target can't compile without Xcode's
-SwiftUI macro plugin. `scripts/test.sh` handles both by building only the test target with
-`-plugin-path <CLT>/usr/lib/swift/host/plugins/testing`.
+iOS doesn't share its own Battery Health screen with a Mac, so for iPhone and iPad the
+condition and peak performance are BatterySoH's estimate from the battery's capacity and
+shutdown record. It can differ slightly from **Settings › Battery › Battery Health** on the
+device.
 
-## Bundle the app
-
-```sh
-scripts/bundle.sh                # build/BatterySoH.app (release, ad-hoc signed)
-scripts/bundle.sh --zip          # also build/BatterySoH-<version>.zip
-```
-
-The bundle is ad-hoc signed, not notarized. Gatekeeper will block it on other Macs the
-first time. Right-click the app and choose **Open**, or run
-`xattr -dr com.apple.quarantine "BatterySoH.app"`.
-
-The app icon is generated in code. To redraw it:
-
-```sh
-swift scripts/make-icon.swift build/AppIcon.iconset   # writes Resources/AppIcon.icns
-```
-
-Version, build number, copyright and bundle id live in `Resources/Info.plist`. Settings › About
-reads them from the bundle; unbundled runs (`swift run`, `--render`) fall back to constants in
-`AboutInfo` (`Sources/BatterySoH/Views/Window/AboutView.swift`), so bump both together.
-
-## Where the data comes from
-
-| Data | Source |
-| --- | --- |
-| Charge, capacities, cycles, voltage, current, charging flags | IORegistry `AppleSmartBattery` |
-| Charger watts and USB-C PD profiles | `AppleSmartBattery` → `AdapterDetails` (`UsbHvcMenu`, `UsbHvcHvcIndex`) |
-| Mac power draw, power from the wall | `AppleSmartBattery` → `PowerTelemetryData` |
-| "Charging on hold" | `AppleSmartBattery` → `ChargerData.NotChargingReason` |
-| Time to empty or full | IOPowerSources (`IOPSCopyPowerSourcesInfo`) |
-| Battery temperature | `AppleSmartBattery.Temperature`, else SMC keys `TB0T`–`TB2T` |
-| Mac model | IODeviceTree `product-name`, `sysctl hw.model` |
-
-Values the hardware doesn't report are shown as "—", never as 0.
+Apple Watch can't be shown: it shares its battery only with its paired iPhone.
 
 ## Privacy
 
-BatterySoH only reads. It never writes SMC keys or changes how the Mac charges, needs no
-root or helper tool, and makes no network connections. Apart from its settings (in
-`UserDefaults`), it writes its daily history at
-`~/Library/Application Support/BatterySoH/history.json` and the last exact reading of each
-iPhone / iPad at `last-exact-readings.json` next to it. (Builds with the old Insights tab also
-wrote a `charge-log/` folder there; current builds neither read nor write it, and it can be
-deleted.)
+- BatterySoH makes **no network connections** and collects nothing.
+- It only **reads** battery information. Settings it changes are macOS's own (Energy Mode,
+  "Charge to Full Now"), and macOS asks for your password where it normally would.
+- It keeps your battery history and the last reading of each iPhone / iPad on your Mac, in
+  `~/Library/Application Support/BatterySoH/`.
 
-## About
+## Questions
 
-BatterySoH is written by Peter Quoc. © 2026 Peter Quoc.
+**What's the difference between "Battery Health" and "Maximum Capacity"?**
+Both compare the battery today with when it was new. Maximum Capacity is the number macOS and
+iOS show in Settings; Battery Health is the battery's own live measurement, so the two can
+differ by a few percent. Apple recommends service once Maximum Capacity drops below 80 %.
 
-The diagnostics report leaves out the battery serial number. Website, support and license
-links are not set yet.
+**How do I report a problem?**
+Open BatterySoH's Settings, go to **About** and click **Copy Diagnostics**, then paste the text
+into your report. It contains no serial numbers.
 
-## Project layout
+## For developers
 
+BatterySoH is a Swift package (SwiftUI, no third-party dependencies). Building the app needs
+Xcode.
+
+```sh
+swift build                      # build everything
+swift test                       # run the tests
+swift run sohstat                # battery details in the terminal (--devices, --json)
+scripts/bundle.sh --dmg          # build/BatterySoH.app and build/BatterySoH-<version>.dmg
 ```
-Sources/BatteryKit/     models, parser, IOKit/SMC readers, history, formatting
-Sources/BatterySoH/   SwiftUI app (menu bar popover, window, settings)
-Sources/sohstat/         CLI
-Tests/BatteryKitTests/  Swift Testing suite and registry fixtures
-scripts/                bundle.sh, test.sh, make-icon.swift
-docs/SPEC.md            product spec
-```
+
+The product spec is in [docs/SPEC.md](docs/SPEC.md).
+
+---
+
+By Peter Quoc · © 2026 Peter Quoc · Version 0.2.0
