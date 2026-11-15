@@ -212,12 +212,13 @@ struct AboutInfo {
             guard let s = bundle.object(forInfoDictionaryKey: key) as? String, !s.isEmpty else { return nil }
             return s
         }
-        return AboutInfo(version: string("CFBundleShortVersionString") ?? fallbackVersion,
-                         build: string("CFBundleVersion") ?? fallbackBuild,
-                         copyright: string("NSHumanReadableCopyright") ?? fallbackCopyright,
-                         osVersion: currentOSVersion(),
-                         mac: mac,
-                         icon: appIcon())
+        return AboutInfo(
+            version: string("CFBundleShortVersionString") ?? fallbackVersion,
+            build: string("CFBundleVersion") ?? fallbackBuild,
+            copyright: string("NSHumanReadableCopyright") ?? fallbackCopyright,
+            osVersion: currentOSVersion(),
+            mac: mac,
+            icon: appIcon())
     }
 
     /// "macOS 27.2 (27C61)"; the build part is dropped if sysctl doesn't answer.
@@ -266,8 +267,10 @@ struct AboutInfo {
 
 enum AboutDiagnostics {
     /// Plain-text report for bug reports. No serial number: it identifies the user's machine.
-    static func report(info: AboutInfo, snapshot: BatterySnapshot?, lowPowerMode: Bool,
-                       condition: BatteryCondition? = nil, generated: Date = Date()) -> String {
+    static func report(
+        info: AboutInfo, snapshot: BatterySnapshot?, lowPowerMode: Bool,
+        condition: BatteryCondition? = nil, generated: Date = Date()
+    ) -> String {
         var lines: [String] = []
         func row(_ label: String, _ value: String) {
             lines.append(label.padding(toLength: 16, withPad: " ", startingAt: 0) + value)
@@ -288,11 +291,20 @@ enum AboutDiagnostics {
             return lines.joined(separator: "\n") + "\n"
         }
         lines.append("Battery")
-        row("Charge", "\(s.chargePercent)% (\(Fmt.percent(s.rawChargePercent, decimals: 1)) raw, \(Fmt.mAh(s.currentCapacityMAh)))")
-        row("Health", "\(Fmt.percent(s.healthPercent, decimals: 1)) (\(Fmt.mAh(s.fullChargeCapacityMAh)) of \(Fmt.mAh(s.designCapacityMAh)))")
+        row(
+            "Charge",
+            "\(s.chargePercent)% (\(Fmt.percent(s.rawChargePercent, decimals: 1)) raw, \(Fmt.mAh(s.currentCapacityMAh)))"
+        )
+        row(
+            "Health",
+            "\(Fmt.percent(s.healthPercent, decimals: 1)) (\(Fmt.mAh(s.fullChargeCapacityMAh)) of \(Fmt.mAh(s.designCapacityMAh)))"
+        )
         row("Cycles", "\(s.cycleCount.map(String.init) ?? Fmt.dash)\(s.designCycleCount.map { " of \($0)" } ?? "")")
         if let c = condition {
-            row("Condition", "\(c.status.title) (\(c.source == .macOS ? "macOS" : "estimated"), max capacity \(Fmt.percent(c.maximumCapacityPercent.map(Double.init))))")
+            row(
+                "Condition",
+                "\(c.status.title) (\(c.source == .macOS ? "macOS" : "estimated"), max capacity \(Fmt.percent(c.maximumCapacityPercent.map(Double.init))))"
+            )
         }
         row("Temperature", Fmt.temperature(s.temperatureC))
         row("Power state", "\(s.statusTitle) [\(s.powerState.rawValue)]")
@@ -300,7 +312,10 @@ enum AboutDiagnostics {
         if s.isChargeOnHold {
             row("On hold reason", String(format: "0x%08X", s.notChargingReason ?? 0))
         }
-        row("Battery", "\(Fmt.volts(mV: s.voltageMV)) · \(Fmt.amps(mA: s.amperageMA)) · \(Fmt.watts(s.batteryPowerW, signed: true))")
+        row(
+            "Battery",
+            "\(Fmt.volts(mV: s.voltageMV)) · \(Fmt.amps(mA: s.amperageMA)) · \(Fmt.watts(s.batteryPowerW, signed: true))"
+        )
         row("Mac uses", Fmt.watts(s.macLoadW))
         row("Power in", Fmt.watts(s.systemPowerInW))
         if let a = s.adapter {

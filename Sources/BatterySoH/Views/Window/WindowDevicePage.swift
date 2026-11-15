@@ -163,9 +163,10 @@ private struct WindowDeviceChargeCard: View {
                             .foregroundStyle(.secondary)
                             .frame(width: 40, alignment: .leading)
                         if let p = part.percent {
-                            WindowMeterBar(fraction: Double(p) / 100,
-                                           label: "\(p)%\(part.isCharging ? " ⚡︎" : "")",
-                                           tint: part.isCharging ? .green : device.chargeTint(p))
+                            WindowMeterBar(
+                                fraction: Double(p) / 100,
+                                label: "\(p)%\(part.isCharging ? " ⚡︎" : "")",
+                                tint: part.isCharging ? .green : device.chargeTint(p))
                         } else {
                             Text(Fmt.dash).foregroundStyle(.tertiary)
                             Spacer()
@@ -174,9 +175,11 @@ private struct WindowDeviceChargeCard: View {
                 }
             }
         } else if let percent = device.percent {
-            WindowMeterBar(fraction: Double(percent) / 100, label: device.percentLabel(percent),
-                           tint: device.chargeTint(percent))
-                .opacity(fade)
+            WindowMeterBar(
+                fraction: Double(percent) / 100, label: device.percentLabel(percent),
+                tint: device.chargeTint(percent)
+            )
+            .opacity(fade)
         } else {
             Text(Fmt.dash).foregroundStyle(.tertiary)
         }
@@ -212,9 +215,11 @@ struct WindowWiFiSyncSetup: View {
             Label("Get the live level", systemImage: "cable.connector")
                 .font(.headline)
                 .foregroundStyle(.tint)
-            Text("For the live level, charging state, health and cycles: connect the \(device) by cable once, unlock it and tap Trust, then in Finder select it and turn on “Show this \(device) when on Wi-Fi”. After that BatterySoH reads it wirelessly whenever both are on the same Wi-Fi.")
-                .font(.callout)
-                .fixedSize(horizontal: false, vertical: true)
+            Text(
+                "For the live level, charging state, health and cycles: connect the \(device) by cable once, unlock it and tap Trust, then in Finder select it and turn on “Show this \(device) when on Wi-Fi”. After that BatterySoH reads it wirelessly whenever both are on the same Wi-Fi."
+            )
+            .font(.callout)
+            .fixedSize(horizontal: false, vertical: true)
             Button("Open Finder", action: onOpenFinder)
                 .windowPillButton(prominent: true)
                 .help("Open Finder to turn on Wi-Fi sync for this \(device)")
@@ -236,12 +241,19 @@ struct WindowWiFiSyncSetup: View {
 private struct WindowDevicesFootnote: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            footnote(symbol: "cable.connector",
-                     text: "iPhone and iPad show up when connected by cable, or over Wi-Fi with “Show this iPhone when on Wi-Fi” on in Finder, and trusted. Health and cycles need that connection. When it drops (iPhone asleep or away), the last reading stays, marked not connected.")
-            footnote(symbol: "personalhotspot",
-                     text: "Without a cable, an iPhone or cellular iPad on the same Apple Account shares a level through Personal Hotspot, like the Wi-Fi menu shows. It is approximate and can lag well behind the device.")
-            footnote(symbol: "applewatch",
-                     text: "Apple Watch doesn’t share its battery with a Mac. Check it on iPhone in the Batteries widget.")
+            footnote(
+                symbol: "cable.connector",
+                text:
+                    "iPhone and iPad show up when connected by cable, or over Wi-Fi with “Show this iPhone when on Wi-Fi” on in Finder, and trusted. Health and cycles need that connection. When it drops (iPhone asleep or away), the last reading stays, marked not connected."
+            )
+            footnote(
+                symbol: "personalhotspot",
+                text:
+                    "Without a cable, an iPhone or cellular iPad on the same Apple Account shares a level through Personal Hotspot, like the Wi-Fi menu shows. It is approximate and can lag well behind the device."
+            )
+            footnote(
+                symbol: "applewatch",
+                text: "Apple Watch doesn’t share its battery with a Mac. Check it on iPhone in the Batteries widget.")
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -333,9 +345,13 @@ extension DeviceBattery {
         case .iPod: candidates = ["ipodtouch", "iphone"]
         case .watch: candidates = ["applewatch"]
         case .airPods:
-            if lowerName.contains("max") { candidates = ["airpodsmax", "headphones"] }
-            else if lowerName.contains("pro") { candidates = ["airpodspro", "airpods"] }
-            else { candidates = ["airpods.gen3", "airpods"] }
+            if lowerName.contains("max") {
+                candidates = ["airpodsmax", "headphones"]
+            } else if lowerName.contains("pro") {
+                candidates = ["airpodspro", "airpods"]
+            } else {
+                candidates = ["airpods.gen3", "airpods"]
+            }
         case .headphones: candidates = ["headphones"]
         case .mouse: candidates = ["magicmouse", "computermouse"]
         case .keyboard: candidates = ["keyboard"]
@@ -349,8 +365,8 @@ extension DeviceBattery {
     }
 }
 
-private extension DeviceBattery.Connection {
-    var label: String {
+extension DeviceBattery.Connection {
+    fileprivate var label: String {
         switch self {
         case .usb: return "USB"
         case .wifi: return "Wi-Fi"

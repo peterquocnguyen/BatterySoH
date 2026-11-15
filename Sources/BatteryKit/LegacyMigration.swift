@@ -14,9 +14,11 @@ public enum LegacyMigration {
     public static let folderName = "BatterySoH"
     static let doneKey = "migration.fromBatteryBuddy.done"
 
-    public static func run(defaults: UserDefaults = .standard,
-                           applicationSupport: URL = defaultApplicationSupport,
-                           legacyPreferences: () -> [String: Any] = readLegacyPreferences) {
+    public static func run(
+        defaults: UserDefaults = .standard,
+        applicationSupport: URL = defaultApplicationSupport,
+        legacyPreferences: () -> [String: Any] = readLegacyPreferences
+    ) {
         moveDataFolder(in: applicationSupport)
         guard !defaults.bool(forKey: doneKey) else { return }
         for (key, value) in legacyPreferences() where defaults.object(forKey: key) == nil {
@@ -43,9 +45,10 @@ public enum LegacyMigration {
     public static func readLegacyPreferences() -> [String: Any] {
         let app = legacyBundleID as CFString
         guard let keys = CFPreferencesCopyKeyList(app, kCFPreferencesCurrentUser, kCFPreferencesAnyHost) as? [String],
-              !keys.isEmpty,
-              let values = CFPreferencesCopyMultiple(keys as CFArray, app, kCFPreferencesCurrentUser,
-                                                     kCFPreferencesAnyHost) as? [String: Any]
+            !keys.isEmpty,
+            let values = CFPreferencesCopyMultiple(
+                keys as CFArray, app, kCFPreferencesCurrentUser,
+                kCFPreferencesAnyHost) as? [String: Any]
         else { return [:] }
         // Window frames and AppKit state belong to the old app; keep only our settings.
         return values.filter { !$0.key.hasPrefix("NS") }

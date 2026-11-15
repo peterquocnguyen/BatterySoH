@@ -25,7 +25,7 @@ public final class MobileDeviceMonitor: @unchecked Sendable {
     private let queue = DispatchQueue(label: "BatterySoH.MobileDevice", qos: .utility)
 
     private struct Attachment {
-        let device: UnsafeMutableRawPointer // retained AMDeviceRef
+        let device: UnsafeMutableRawPointer  // retained AMDeviceRef
         let connection: DeviceBattery.Connection
     }
 
@@ -84,16 +84,17 @@ public final class MobileDeviceMonitor: @unchecked Sendable {
         guard let device else { return }
         guard let udid = api.copyIdentifier(device)?.takeRetainedValue() as String?, !udid.isEmpty else { return }
         switch message {
-        case 1: // connected
-            let connection: DeviceBattery.Connection = switch api.interfaceType(device) {
-            case 1: .usb
-            case 2: .wifi
-            default: .other
-            }
+        case 1:  // connected
+            let connection: DeviceBattery.Connection =
+                switch api.interfaceType(device) {
+                case 1: .usb
+                case 2: .wifi
+                default: .other
+                }
             let retained = Unmanaged<AnyObject>.fromOpaque(device).retain().toOpaque()
             attached[udid, default: []].append(Attachment(device: retained, connection: connection))
             query(udid)
-        case 2: // disconnected
+        case 2:  // disconnected
             guard var list = attached[udid] else { return }
             if let i = list.firstIndex(where: { $0.device == device }) {
                 Unmanaged<AnyObject>.fromOpaque(list[i].device).release()
@@ -114,7 +115,8 @@ public final class MobileDeviceMonitor: @unchecked Sendable {
 
     private func query(_ udid: String) {
         guard !inFlight.contains(udid),
-              let best = attached[udid]?.min(by: { rank($0.connection) < rank($1.connection) }) else { return }
+            let best = attached[udid]?.min(by: { rank($0.connection) < rank($1.connection) })
+        else { return }
         inFlight.insert(udid)
         // Keep the device alive across the hop even if it detaches meanwhile.
         let device = Unmanaged<AnyObject>.fromOpaque(best.device).retain().toOpaque()
@@ -127,7 +129,7 @@ public final class MobileDeviceMonitor: @unchecked Sendable {
                 guard let self else { return }
                 self.inFlight.remove(udid)
                 guard self.attached[udid] != nil else { return }
-                if let result { self.results[udid] = result } // keep the last good read on a hiccup
+                if let result { self.results[udid] = result }  // keep the last good read on a hiccup
                 self.publish()
             }
         }
@@ -141,8 +143,10 @@ public final class MobileDeviceMonitor: @unchecked Sendable {
 
     // MARK: - Device I/O (background queue)
 
-    private static func read(api: API, device: UnsafeMutableRawPointer, udid: String,
-                             connection: DeviceBattery.Connection) -> DeviceBattery? {
+    private static func read(
+        api: API, device: UnsafeMutableRawPointer, udid: String,
+        connection: DeviceBattery.Connection
+    ) -> DeviceBattery? {
         guard api.connect(device) == 0 else { return nil }
         defer { _ = api.disconnect(device) }
 
@@ -194,20 +198,22 @@ public final class MobileDeviceMonitor: @unchecked Sendable {
                 FileHandle.standardError.write("battery \(k) = \(v)\n".data(using: .utf8)!)
             }
         }
-        return MobileBatteryParser.parse(id: udid, lockdown: lockdown, battery: battery,
-                                         registry: registry, connection: connection, updatedAt: Date())
+        return MobileBatteryParser.parse(
+            id: udid, lockdown: lockdown, battery: battery,
+            registry: registry, connection: connection, updatedAt: Date())
     }
 
     /// diagnostics_relay: `{Request: IORegistry, EntryClass: IOPMPowerSource}` →
     /// `{Status: Success, Diagnostics: {IORegistry: {…}}}`.
     private static func diagnosticsRegistry(api: API, service: UnsafeMutableRawPointer) -> [String: Any]? {
-        let xml: Int = 100 // kCFPropertyListXMLFormat_v1_0
+        let xml: Int = 100  // kCFPropertyListXMLFormat_v1_0
         let request = ["Request": "IORegistry", "EntryClass": "IOPMPowerSource"] as CFDictionary
         guard api.send(service, request, xml) == 0 else { return nil }
         var reply: Unmanaged<CFPropertyList>?
         var format: Int = 0
         guard api.receive(service, &reply, &format) == 0,
-              let dict = reply?.takeRetainedValue() as? [String: Any] else { return nil }
+            let dict = reply?.takeRetainedValue() as? [String: Any]
+        else { return nil }
         _ = api.send(service, ["Request": "Goodbye"] as CFDictionary, xml)
         guard (dict["Status"] as? String) == "Success" else { return nil }
         return (dict["Diagnostics"] as? [String: Any])?["IORegistry"] as? [String: Any]
@@ -217,19 +223,31 @@ public final class MobileDeviceMonitor: @unchecked Sendable {
 
     struct API: @unchecked Sendable {
         typealias Callback = @convention(c) (UnsafeMutableRawPointer?, UnsafeMutableRawPointer?) -> Void
-        typealias Subscribe = @convention(c) (Callback, UInt32, UInt32, UnsafeMutableRawPointer?,
-                                              UnsafeMutablePointer<UnsafeMutableRawPointer?>) -> Int32
-        typealias SubscribeWithOptions = @convention(c) (Callback, UInt32, UInt32, UnsafeMutableRawPointer?,
-                                                         UnsafeMutablePointer<UnsafeMutableRawPointer?>,
-                                                         CFDictionary?) -> Int32
+        typealias Subscribe =
+            @convention(c) (
+                Callback, UInt32, UInt32, UnsafeMutableRawPointer?,
+                UnsafeMutablePointer<UnsafeMutableRawPointer?>
+            ) -> Int32
+        typealias SubscribeWithOptions =
+            @convention(c) (
+                Callback, UInt32, UInt32, UnsafeMutableRawPointer?,
+                UnsafeMutablePointer<UnsafeMutableRawPointer?>,
+                CFDictionary?
+            ) -> Int32
         typealias DeviceCall = @convention(c) (UnsafeMutableRawPointer) -> Int32
         typealias CopyString = @convention(c) (UnsafeMutableRawPointer) -> Unmanaged<CFString>?
         typealias CopyValue = @convention(c) (UnsafeMutableRawPointer, CFString?, CFString?) -> Unmanaged<CFTypeRef>?
-        typealias StartService = @convention(c) (UnsafeMutableRawPointer, CFString, CFDictionary?,
-                                                 UnsafeMutablePointer<UnsafeMutableRawPointer?>) -> Int32
+        typealias StartService =
+            @convention(c) (
+                UnsafeMutableRawPointer, CFString, CFDictionary?,
+                UnsafeMutablePointer<UnsafeMutableRawPointer?>
+            ) -> Int32
         typealias Send = @convention(c) (UnsafeMutableRawPointer, CFPropertyList, Int) -> Int32
-        typealias Receive = @convention(c) (UnsafeMutableRawPointer, UnsafeMutablePointer<Unmanaged<CFPropertyList>?>,
-                                            UnsafeMutablePointer<Int>) -> Int32
+        typealias Receive =
+            @convention(c) (
+                UnsafeMutableRawPointer, UnsafeMutablePointer<Unmanaged<CFPropertyList>?>,
+                UnsafeMutablePointer<Int>
+            ) -> Int32
 
         let subscribe: Subscribe
         let subscribeWithOptions: SubscribeWithOptions?
@@ -255,27 +273,28 @@ public final class MobileDeviceMonitor: @unchecked Sendable {
                 dlsym(h, name).map { unsafeBitCast($0, to: T.self) }
             }
             guard let subscribe = sym("AMDeviceNotificationSubscribe", Subscribe.self),
-                  let connect = sym("AMDeviceConnect", DeviceCall.self),
-                  let disconnect = sym("AMDeviceDisconnect", DeviceCall.self),
-                  let isPaired = sym("AMDeviceIsPaired", DeviceCall.self),
-                  let validatePairing = sym("AMDeviceValidatePairing", DeviceCall.self),
-                  let startSession = sym("AMDeviceStartSession", DeviceCall.self),
-                  let stopSession = sym("AMDeviceStopSession", DeviceCall.self),
-                  let interfaceType = sym("AMDeviceGetInterfaceType", DeviceCall.self),
-                  let copyIdentifier = sym("AMDeviceCopyDeviceIdentifier", CopyString.self),
-                  let copyValue = sym("AMDeviceCopyValue", CopyValue.self),
-                  let startService = sym("AMDeviceSecureStartService", StartService.self),
-                  let send = sym("AMDServiceConnectionSendMessage", Send.self),
-                  let receive = sym("AMDServiceConnectionReceiveMessage", Receive.self),
-                  let invalidate = sym("AMDServiceConnectionInvalidate", DeviceCall.self)
+                let connect = sym("AMDeviceConnect", DeviceCall.self),
+                let disconnect = sym("AMDeviceDisconnect", DeviceCall.self),
+                let isPaired = sym("AMDeviceIsPaired", DeviceCall.self),
+                let validatePairing = sym("AMDeviceValidatePairing", DeviceCall.self),
+                let startSession = sym("AMDeviceStartSession", DeviceCall.self),
+                let stopSession = sym("AMDeviceStopSession", DeviceCall.self),
+                let interfaceType = sym("AMDeviceGetInterfaceType", DeviceCall.self),
+                let copyIdentifier = sym("AMDeviceCopyDeviceIdentifier", CopyString.self),
+                let copyValue = sym("AMDeviceCopyValue", CopyValue.self),
+                let startService = sym("AMDeviceSecureStartService", StartService.self),
+                let send = sym("AMDServiceConnectionSendMessage", Send.self),
+                let receive = sym("AMDServiceConnectionReceiveMessage", Receive.self),
+                let invalidate = sym("AMDServiceConnectionInvalidate", DeviceCall.self)
             else { return nil }
-            return API(subscribe: subscribe,
-                       subscribeWithOptions: sym("AMDeviceNotificationSubscribeWithOptions", SubscribeWithOptions.self),
-                       unsubscribe: sym("AMDeviceNotificationUnsubscribe", DeviceCall.self),
-                       connect: connect, disconnect: disconnect, isPaired: isPaired,
-                       validatePairing: validatePairing, startSession: startSession, stopSession: stopSession,
-                       interfaceType: interfaceType, copyIdentifier: copyIdentifier, copyValue: copyValue,
-                       startService: startService, send: send, receive: receive, invalidate: invalidate)
+            return API(
+                subscribe: subscribe,
+                subscribeWithOptions: sym("AMDeviceNotificationSubscribeWithOptions", SubscribeWithOptions.self),
+                unsubscribe: sym("AMDeviceNotificationUnsubscribe", DeviceCall.self),
+                connect: connect, disconnect: disconnect, isPaired: isPaired,
+                validatePairing: validatePairing, startSession: startSession, stopSession: stopSession,
+                interfaceType: interfaceType, copyIdentifier: copyIdentifier, copyValue: copyValue,
+                startService: startService, send: send, receive: receive, invalidate: invalidate)
         }
     }
 }

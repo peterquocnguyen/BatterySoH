@@ -59,7 +59,7 @@ public enum PasswordFreeEnergyMode {
         // Validate first; only then install with root ownership and 0440, as sudo requires.
         try EnergyModeControl.runAsAdmin(
             "/usr/sbin/visudo -cf \(src) && /usr/bin/install -m 0440 -o root -g wheel \(src) \(sudoersPath)"
-            + " && /bin/rm -f \(legacySudoersPath)")
+                + " && /bin/rm -f \(legacySudoersPath)")
     }
 
     /// Removes the rule after one administrator prompt.

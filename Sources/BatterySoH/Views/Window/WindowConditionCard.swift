@@ -36,13 +36,15 @@ struct WindowConditionCard: View {
                         .padding(.vertical, 8)
                 }
                 WindowHairline()
-                Label(condition.sourceCaption(deviceName: deviceName),
-                      systemImage: condition.source == .macOS ? "checkmark.seal" : "info.circle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                Label(
+                    condition.sourceCaption(deviceName: deviceName),
+                    systemImage: condition.source == .macOS ? "checkmark.seal" : "info.circle"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
             }
         }
         .accessibilityElement(children: .combine)
@@ -105,7 +107,8 @@ extension BatteryCondition.PeakPerformance {
         case .normal:
             return "No unexpected shutdown on record, so iOS shouldn’t be limiting peak performance."
         case .unexpectedShutdown:
-            return "An unexpected shutdown is on record. After one, iOS may limit peak performance to keep it from happening again."
+            return
+                "An unexpected shutdown is on record. After one, iOS may limit peak performance to keep it from happening again."
         case .worn:
             return "With a worn battery, iOS may limit peak performance to avoid unexpected shutdowns."
         }
@@ -122,14 +125,19 @@ extension BatteryCondition {
         }
         switch (status, source) {
         case (.normal, _):
-            let lead = source == .macOS ? "macOS reports the battery is working normally." : "The battery doesn’t need service yet."
+            let lead =
+                source == .macOS
+                ? "macOS reports the battery is working normally." : "The battery doesn’t need service yet."
             guard let points = pointsAboveServiceLevel else { return lead }
             if points == 0 { return "\(lead) Maximum capacity is at the \(threshold)% service level." }
-            return "\(lead) Maximum capacity is \(points) \(points == 1 ? "point" : "points") above the \(threshold)% service level."
+            return
+                "\(lead) Maximum capacity is \(points) \(points == 1 ? "point" : "points") above the \(threshold)% service level."
         case (.serviceRecommended, .macOS):
-            return "macOS recommends service: the battery holds noticeably less charge than when it was new. It is still safe to use; a battery replacement brings back full battery life."
+            return
+                "macOS recommends service: the battery holds noticeably less charge than when it was new. It is still safe to use; a battery replacement brings back full battery life."
         case (.serviceRecommended, .estimated):
-            return "Maximum capacity is below \(threshold)%, the level at which Apple considers a battery worn. Expect noticeably shorter battery life; a battery replacement brings it back."
+            return
+                "Maximum capacity is below \(threshold)%, the level at which Apple considers a battery worn. Expect noticeably shorter battery life; a battery replacement brings it back."
         }
     }
 
@@ -151,7 +159,8 @@ extension BatteryCondition {
         case .estimated where deviceName == "Mac":
             return "Estimated from capacity: macOS didn’t report a condition."
         case .estimated:
-            return "Estimated by BatterySoH from capacity and the shutdown record. The \(deviceName) keeps its own verdict in Settings › Battery › Battery Health; it can differ slightly."
+            return
+                "Estimated by BatterySoH from capacity and the shutdown record. The \(deviceName) keeps its own verdict in Settings › Battery › Battery Health; it can differ slightly."
         }
     }
 }

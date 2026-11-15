@@ -10,7 +10,8 @@ public enum SmartBatteryRegistry {
         defer { IOObjectRelease(service) }
         var props: Unmanaged<CFMutableDictionary>?
         guard IORegistryEntryCreateCFProperties(service, &props, kCFAllocatorDefault, 0) == kIOReturnSuccess,
-              let dict = props?.takeRetainedValue() as? [String: Any] else { return nil }
+            let dict = props?.takeRetainedValue() as? [String: Any]
+        else { return nil }
         return dict
     }
 }
@@ -24,12 +25,14 @@ public enum PowerSources {
 
     public static func internalBatteryTimes() -> Times? {
         guard let blob = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
-              let list = IOPSCopyPowerSourcesList(blob)?.takeRetainedValue() as? [CFTypeRef] else { return nil }
+            let list = IOPSCopyPowerSourcesList(blob)?.takeRetainedValue() as? [CFTypeRef]
+        else { return nil }
         for ps in list {
             guard let desc = IOPSGetPowerSourceDescription(blob, ps)?.takeUnretainedValue() as? [String: Any],
-                  desc[kIOPSTypeKey] as? String == kIOPSInternalBatteryType else { continue }
+                desc[kIOPSTypeKey] as? String == kIOPSInternalBatteryType
+            else { continue }
             func minutes(_ key: String) -> Int? {
-                guard let m = desc[key] as? Int, m > 0 else { return nil } // -1 = calculating
+                guard let m = desc[key] as? Int, m > 0 else { return nil }  // -1 = calculating
                 return m
             }
             return Times(minutesToEmpty: minutes(kIOPSTimeToEmptyKey), minutesToFull: minutes(kIOPSTimeToFullChargeKey))
@@ -46,10 +49,11 @@ public enum PowerSources {
         public init(_ handler: @escaping () -> Void) {
             self.handler = handler
             let context = Unmanaged.passUnretained(self).toOpaque()
-            source = IOPSNotificationCreateRunLoopSource({ ctx in
-                guard let ctx else { return }
-                Unmanaged<Observer>.fromOpaque(ctx).takeUnretainedValue().handler()
-            }, context)?.takeRetainedValue()
+            source = IOPSNotificationCreateRunLoopSource(
+                { ctx in
+                    guard let ctx else { return }
+                    Unmanaged<Observer>.fromOpaque(ctx).takeUnretainedValue().handler()
+                }, context)?.takeRetainedValue()
             if let source { CFRunLoopAddSource(CFRunLoopGetMain(), source, .defaultMode) }
         }
 
@@ -96,8 +100,10 @@ public struct MacInfo: Codable, Equatable, Sendable {
         let entry = IORegistryEntryFromPath(kIOMainPortDefault, "IODeviceTree:/product")
         guard entry != 0 else { return nil }
         defer { IOObjectRelease(entry) }
-        guard let data = IORegistryEntryCreateCFProperty(entry, "product-name" as CFString, kCFAllocatorDefault, 0)?
-            .takeRetainedValue() as? Data else { return nil }
+        guard
+            let data = IORegistryEntryCreateCFProperty(entry, "product-name" as CFString, kCFAllocatorDefault, 0)?
+                .takeRetainedValue() as? Data
+        else { return nil }
         let s = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .controlCharacters)
         return s.isEmpty ? nil : s
     }
@@ -121,7 +127,9 @@ public final class BatteryReader {
         guard let dict = SmartBatteryRegistry.read() else { return nil }
         var snap = BatteryParser.parse(dict, now: now)
         if let times = PowerSources.internalBatteryTimes() {
-            snap.minutesToEmpty = times.minutesToEmpty ?? ([.onBattery, .drainingOnAC].contains(snap.powerState) ? snap.minutesToEmpty : nil)
+            snap.minutesToEmpty =
+                times.minutesToEmpty
+                ?? ([.onBattery, .drainingOnAC].contains(snap.powerState) ? snap.minutesToEmpty : nil)
             snap.minutesToFull = times.minutesToFull ?? (snap.powerState == .charging ? snap.minutesToFull : nil)
         }
         if snap.temperatureC == nil {
@@ -139,14 +147,16 @@ public enum AccessoryPowerSources {
     private typealias CopyByType = @convention(c) (Int32) -> Unmanaged<CFTypeRef>?
     private static let copyByType: CopyByType? = {
         guard let handle = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_LAZY),
-              let sym = dlsym(handle, "IOPSCopyPowerSourcesByType") else { return nil }
+            let sym = dlsym(handle, "IOPSCopyPowerSourcesByType")
+        else { return nil }
         return unsafeBitCast(sym, to: CopyByType.self)
     }()
     private static let accessoryType: Int32 = 4
 
     public static func readDescriptions() -> [[String: Any]] {
         guard let copyByType, let blob = copyByType(accessoryType)?.takeRetainedValue(),
-              let list = IOPSCopyPowerSourcesList(blob)?.takeRetainedValue() as? [CFTypeRef] else { return [] }
+            let list = IOPSCopyPowerSourcesList(blob)?.takeRetainedValue() as? [CFTypeRef]
+        else { return [] }
         return list.compactMap { IOPSGetPowerSourceDescription(blob, $0)?.takeUnretainedValue() as? [String: Any] }
     }
 

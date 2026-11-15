@@ -10,8 +10,10 @@ public struct HistorySample: Codable, Equatable, Sendable, Identifiable {
 
     public var id: Date { date }
 
-    public init(date: Date, healthPercent: Double, cycleCount: Int,
-                fullChargeCapacityMAh: Int? = nil, designCapacityMAh: Int? = nil) {
+    public init(
+        date: Date, healthPercent: Double, cycleCount: Int,
+        fullChargeCapacityMAh: Int? = nil, designCapacityMAh: Int? = nil
+    ) {
         self.date = date
         self.healthPercent = healthPercent
         self.cycleCount = cycleCount
@@ -21,9 +23,10 @@ public struct HistorySample: Codable, Equatable, Sendable, Identifiable {
 
     public init?(snapshot: BatterySnapshot) {
         guard let health = snapshot.healthPercent, let cycles = snapshot.cycleCount else { return nil }
-        self.init(date: snapshot.timestamp, healthPercent: health, cycleCount: cycles,
-                  fullChargeCapacityMAh: snapshot.fullChargeCapacityMAh,
-                  designCapacityMAh: snapshot.designCapacityMAh)
+        self.init(
+            date: snapshot.timestamp, healthPercent: health, cycleCount: cycles,
+            fullChargeCapacityMAh: snapshot.fullChargeCapacityMAh,
+            designCapacityMAh: snapshot.designCapacityMAh)
     }
 }
 
@@ -46,10 +49,11 @@ public enum HistoryAggregator {
             return String(format: "%04d-%02d", c.year ?? 0, c.month ?? 0)
         }
         return groups.map { period, items in
-            MonthSummary(period: period,
-                         averageHealthPercent: items.map(\.healthPercent).reduce(0, +) / Double(items.count),
-                         maxCycleCount: items.map(\.cycleCount).max() ?? 0,
-                         sampleCount: items.count)
+            MonthSummary(
+                period: period,
+                averageHealthPercent: items.map(\.healthPercent).reduce(0, +) / Double(items.count),
+                maxCycleCount: items.map(\.cycleCount).max() ?? 0,
+                sampleCount: items.count)
         }.sorted { $0.period < $1.period }
     }
 
@@ -60,8 +64,11 @@ public enum HistoryAggregator {
         f.timeZone = .current
         var lines = ["date,health_percent,cycle_count,full_charge_mah,design_mah"]
         for s in samples.sorted(by: { $0.date < $1.date }) {
-            lines.append([f.string(from: s.date), String(format: "%.1f", s.healthPercent), String(s.cycleCount),
-                          s.fullChargeCapacityMAh.map(String.init) ?? "", s.designCapacityMAh.map(String.init) ?? ""]
+            lines.append(
+                [
+                    f.string(from: s.date), String(format: "%.1f", s.healthPercent), String(s.cycleCount),
+                    s.fullChargeCapacityMAh.map(String.init) ?? "", s.designCapacityMAh.map(String.init) ?? "",
+                ]
                 .joined(separator: ","))
         }
         return lines.joined(separator: "\n") + "\n"
@@ -86,7 +93,10 @@ public final class HistoryStore {
     }
 
     public func load() {
-        guard let data = try? Data(contentsOf: fileURL) else { samples = []; return }
+        guard let data = try? Data(contentsOf: fileURL) else {
+            samples = []
+            return
+        }
         samples = (try? Self.decoder.decode([HistorySample].self, from: data)) ?? []
     }
 
@@ -106,7 +116,8 @@ public final class HistoryStore {
     }
 
     public func save() throws {
-        try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Self.encoder.encode(samples).write(to: fileURL, options: .atomic)
     }
 

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import BatteryKit
 
 /// Each test gets its own temp directory, removed afterwards.
@@ -26,8 +27,9 @@ struct HistoryStoreTests {
     }
 
     @Test func corruptFileLoadsEmpty() throws {
-        try FileManager.default.createDirectory(at: tmp.historyFile.deletingLastPathComponent(),
-                                                withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: tmp.historyFile.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
         try Data("not json".utf8).write(to: tmp.historyFile)
         #expect(store().samples.isEmpty)
     }
@@ -55,8 +57,9 @@ struct HistoryStoreTests {
 
     @Test func persistenceRoundTrip() throws {
         let s = store()
-        let a = HistorySample(date: utcDate(2025, 10, 30), healthPercent: 91.25, cycleCount: 97,
-                              fullChargeCapacityMAh: 5700, designCapacityMAh: 6249)
+        let a = HistorySample(
+            date: utcDate(2025, 10, 30), healthPercent: 91.25, cycleCount: 97,
+            fullChargeCapacityMAh: 5700, designCapacityMAh: 6249)
         let b = HistorySample(date: utcDate(2025, 11, 2), healthPercent: 90.5, cycleCount: 99)
         try s.record(b)
         try s.record(a)
@@ -116,16 +119,18 @@ struct HistoryAggregatorTests {
     @Test func csvHeaderAndRows() {
         let csv = HistoryAggregator.csv([
             HistorySample(date: utcDate(2025, 11, 2), healthPercent: 90.46, cycleCount: 99),
-            HistorySample(date: utcDate(2025, 11, 1), healthPercent: 91.25, cycleCount: 98,
-                          fullChargeCapacityMAh: 5700, designCapacityMAh: 6249),
+            HistorySample(
+                date: utcDate(2025, 11, 1), healthPercent: 91.25, cycleCount: 98,
+                fullChargeCapacityMAh: 5700, designCapacityMAh: 6249),
         ])
         let lines = csv.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        #expect(lines == [
-            "date,health_percent,cycle_count,full_charge_mah,design_mah",
-            "2025-11-01,91.2,98,5700,6249",
-            "2025-11-02,90.5,99,,",
-            "",
-        ])
+        #expect(
+            lines == [
+                "date,health_percent,cycle_count,full_charge_mah,design_mah",
+                "2025-11-01,91.2,98,5700,6249",
+                "2025-11-02,90.5,99,,",
+                "",
+            ])
     }
 
     @Test func csvEmptyIsHeaderOnly() {
@@ -136,8 +141,10 @@ struct HistoryAggregatorTests {
     /// not the UTC date (which differs for e.g. 00:30 in UTC+7).
     @Test func csvUsesLocalCalendarDay() throws {
         let local = Calendar.current
-        let earlyMorning = try #require(local.date(from: DateComponents(year: 2025, month: 11, day: 3, hour: 0, minute: 30)))
-        let lateNight = try #require(local.date(from: DateComponents(year: 2025, month: 11, day: 4, hour: 23, minute: 30)))
+        let earlyMorning = try #require(
+            local.date(from: DateComponents(year: 2025, month: 11, day: 3, hour: 0, minute: 30)))
+        let lateNight = try #require(
+            local.date(from: DateComponents(year: 2025, month: 11, day: 4, hour: 23, minute: 30)))
         let csv = HistoryAggregator.csv([
             HistorySample(date: earlyMorning, healthPercent: 90, cycleCount: 1),
             HistorySample(date: lateNight, healthPercent: 90, cycleCount: 2),

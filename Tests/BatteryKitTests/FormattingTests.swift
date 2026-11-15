@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import BatteryKit
 
 @Suite("Fmt")
@@ -86,7 +87,7 @@ struct FormattingTests {
         #expect(Fmt.mAh(5955) == "5,955 mAh")
         #expect(Fmt.mAh(999) == "999 mAh")
         #expect(Fmt.mAh(0) == "0 mAh")
-        #expect(Fmt.mAh(12345678) == "12,345,678 mAh")
+        #expect(Fmt.mAh(12_345_678) == "12,345,678 mAh")
     }
 
     @Test func trimZeros() {

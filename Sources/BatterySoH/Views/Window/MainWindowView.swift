@@ -18,16 +18,19 @@ struct MainWindowView: View {
     var body: some View {
         NavigationSplitView {
             WindowSidebar(sections: sections, selection: selectionBinding)
-                .navigationSplitViewColumnWidth(min: WindowLayout.sidebarMinWidth,
-                                                ideal: WindowLayout.sidebarWidth,
-                                                max: WindowLayout.sidebarMaxWidth)
+                .navigationSplitViewColumnWidth(
+                    min: WindowLayout.sidebarMinWidth,
+                    ideal: WindowLayout.sidebarWidth,
+                    max: WindowLayout.sidebarMaxWidth)
         } detail: {
             ScrollView { detail }
                 .scrollBounceBehavior(.basedOnSize)
                 .navigationSplitViewColumnWidth(min: WindowLayout.detailMinWidth, ideal: WindowLayout.detailWidth)
         }
-        .frame(minWidth: WindowLayout.minWidth, idealWidth: WindowLayout.idealWidth, maxWidth: WindowLayout.maxWidth,
-               minHeight: WindowLayout.minHeight, idealHeight: WindowLayout.idealHeight, maxHeight: .infinity)
+        .frame(
+            minWidth: WindowLayout.minWidth, idealWidth: WindowLayout.idealWidth, maxWidth: WindowLayout.maxWidth,
+            minHeight: WindowLayout.minHeight, idealHeight: WindowLayout.idealHeight, maxHeight: .infinity
+        )
         .debugWindowDump("main window")
         .onAppear { model.surfaceAppeared() }
         .onDisappear { model.surfaceDisappeared() }
@@ -56,10 +59,11 @@ struct MainWindowView: View {
             WindowDevicePage(device: device, temperatureUnit: temperatureUnit, onOpenFinder: Self.openFinder)
                 .id(device.id)
         } else {
-            WindowMacPage(mac: model.mac, snapshot: model.snapshot, temperatureUnit: temperatureUnit,
-                          lowPowerMode: model.isLowPowerMode, detailsExpanded: $detailsExpanded,
-                          history: model.history, condition: model.macCondition,
-                          historyTableExpanded: $historyTableExpanded, onExport: exportCSV, exportMessage: exportMessage)
+            WindowMacPage(
+                mac: model.mac, snapshot: model.snapshot, temperatureUnit: temperatureUnit,
+                lowPowerMode: model.isLowPowerMode, detailsExpanded: $detailsExpanded,
+                history: model.history, condition: model.macCondition,
+                historyTableExpanded: $historyTableExpanded, onExport: exportCSV, exportMessage: exportMessage)
         }
     }
 
@@ -146,8 +150,10 @@ enum WindowRenderEntries {
         let now = DeviceBattery.sampleNow
         // Live iPhone (USB, charging), the last exact reading of a sleeping one, a hotspot-only
         // one, AirPods and a mouse.
-        let devices: [DeviceBattery] = [.sampleIPhone, DeviceBattery.sampleRememberedIPhone.lastKnown,
-                                        .sampleNearbyIPhone, .sampleAirPods, .sampleMouse]
+        let devices: [DeviceBattery] = [
+            .sampleIPhone, DeviceBattery.sampleRememberedIPhone.lastKnown,
+            .sampleNearbyIPhone, .sampleAirPods, .sampleMouse,
+        ]
         let sections = WindowSidebarSection.all(mac: mac, snapshot: .sampleCharging, devices: devices)
 
         return [
@@ -155,8 +161,9 @@ enum WindowRenderEntries {
                 sidebar(sections, selection: WindowSidebarItem.thisMacID)
             },
             RenderEntry("window-sidebar-mac-only") {
-                sidebar(WindowSidebarSection.all(mac: mac, snapshot: onBattery, devices: [.sampleMouse]),
-                        selection: WindowSidebarItem.thisMacID)
+                sidebar(
+                    WindowSidebarSection.all(mac: mac, snapshot: onBattery, devices: [.sampleMouse]),
+                    selection: WindowSidebarItem.thisMacID)
             },
             RenderEntry("window-split-iphone") {
                 // Sidebar and page side by side, the way the window lays them out.
@@ -171,9 +178,10 @@ enum WindowRenderEntries {
             },
             RenderEntry("window-mac-charging") {
                 page {
-                    WindowMacPage(mac: mac, snapshot: .sampleCharging, temperatureUnit: .celsius, lowPowerMode: false,
-                                  detailsExpanded: .constant(true), history: history,
-                                  condition: BatteryCondition.mac(.sampleCharging, reported: .sampleGood), onExport: {})
+                    WindowMacPage(
+                        mac: mac, snapshot: .sampleCharging, temperatureUnit: .celsius, lowPowerMode: false,
+                        detailsExpanded: .constant(true), history: history,
+                        condition: BatteryCondition.mac(.sampleCharging, reported: .sampleGood), onExport: {})
                 }
             },
             RenderEntry("window-mac-history-table") {
@@ -184,16 +192,18 @@ enum WindowRenderEntries {
             },
             RenderEntry("window-mac-onbattery-nohistory") {
                 page {
-                    WindowMacPage(mac: mac, snapshot: onBattery, temperatureUnit: .fahrenheit, lowPowerMode: true,
-                                  detailsExpanded: .constant(false), history: [],
-                                  condition: BatteryCondition.mac(.sampleWorn, reported: .sampleService), onExport: {})
+                    WindowMacPage(
+                        mac: mac, snapshot: onBattery, temperatureUnit: .fahrenheit, lowPowerMode: true,
+                        detailsExpanded: .constant(false), history: [],
+                        condition: BatteryCondition.mac(.sampleWorn, reported: .sampleService), onExport: {})
                 }
             },
             RenderEntry("window-mac-nobattery") {
                 page {
-                    WindowMacPage(mac: MacInfo(name: "Mac mini", detail: "2024", chip: "Apple M4", identifier: "Mac16,10"),
-                                  snapshot: nil, temperatureUnit: .celsius, lowPowerMode: false,
-                                  detailsExpanded: .constant(false), history: [])
+                    WindowMacPage(
+                        mac: MacInfo(name: "Mac mini", detail: "2024", chip: "Apple M4", identifier: "Mac16,10"),
+                        snapshot: nil, temperatureUnit: .celsius, lowPowerMode: false,
+                        detailsExpanded: .constant(false), history: [])
                 }
             },
             RenderEntry("window-iphone-live") {
@@ -204,8 +214,9 @@ enum WindowRenderEntries {
             },
             RenderEntry("window-iphone-remembered") {
                 page {
-                    WindowDevicePage(device: DeviceBattery.sampleRememberedIPhone.lastKnown, temperatureUnit: .celsius,
-                                     now: now)
+                    WindowDevicePage(
+                        device: DeviceBattery.sampleRememberedIPhone.lastKnown, temperatureUnit: .celsius,
+                        now: now)
                 }
             },
             RenderEntry("window-iphone-hotspot") {
@@ -225,8 +236,10 @@ enum WindowRenderEntries {
 
     /// The sidebar rows at sidebar width, on a slightly tinted ground like a source list.
     @MainActor
-    private static func sidebar(_ sections: [WindowSidebarSection], selection: String,
-                                height: CGFloat? = 420) -> some View {
+    private static func sidebar(
+        _ sections: [WindowSidebarSection], selection: String,
+        height: CGFloat? = 420
+    ) -> some View {
         WindowSidebarRendering(sections: sections, selection: selection)
             .frame(width: WindowLayout.sidebarWidth, height: height, alignment: .top)
             .frame(maxHeight: .infinity, alignment: .top)

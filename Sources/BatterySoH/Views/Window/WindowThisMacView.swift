@@ -21,16 +21,19 @@ struct WindowMacPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            WindowThisMacContent(mac: mac, snapshot: snapshot, temperatureUnit: temperatureUnit,
-                                 lowPowerMode: lowPowerMode, detailsExpanded: $detailsExpanded,
-                                 condition: condition)
+            WindowThisMacContent(
+                mac: mac, snapshot: snapshot, temperatureUnit: temperatureUnit,
+                lowPowerMode: lowPowerMode, detailsExpanded: $detailsExpanded,
+                condition: condition)
             // A Mac without a battery has no history to show.
             if snapshot != nil || !history.isEmpty {
-                WindowHistorySection(history: history, tableExpanded: historyTableExpanded, onExport: history.isEmpty ? nil : onExport,
-                                     exportMessage: exportMessage)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
-                    .padding(.bottom, 20)
+                WindowHistorySection(
+                    history: history, tableExpanded: historyTableExpanded, onExport: history.isEmpty ? nil : onExport,
+                    exportMessage: exportMessage
+                )
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 20)
             }
         }
     }
@@ -115,10 +118,12 @@ private struct WindowBatteryLevels: View {
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                 }
-                WindowMeterBar(fraction: Double(snapshot.chargePercent) / 100,
-                               label: "\(snapshot.chargePercent)%",
-                               tint: snapshot.windowChargeTint)
-                    .padding(.top, 8)
+                WindowMeterBar(
+                    fraction: Double(snapshot.chargePercent) / 100,
+                    label: "\(snapshot.chargePercent)%",
+                    tint: snapshot.windowChargeTint
+                )
+                .padding(.top, 8)
                 HStack(spacing: 5) {
                     Image(systemName: snapshot.windowStatusSymbol)
                         .foregroundStyle(snapshot.windowStatusTint)
@@ -137,10 +142,12 @@ private struct WindowBatteryLevels: View {
                 }
                 .padding(.top, 16)
                 if let health = snapshot.healthPercent {
-                    WindowMeterBar(fraction: health / 100,
-                                   label: Fmt.percent(health),
-                                   tint: Self.healthTint(health))
-                        .padding(.top, 8)
+                    WindowMeterBar(
+                        fraction: health / 100,
+                        label: Fmt.percent(health),
+                        tint: Self.healthTint(health)
+                    )
+                    .padding(.top, 8)
                 } else {
                     Text(Fmt.dash).foregroundStyle(.tertiary).padding(.top, 6)
                 }
@@ -211,15 +218,15 @@ private struct WindowNoBattery: View {
 
 // MARK: - Derived display values
 
-private extension MacInfo {
+extension MacInfo {
     /// "14-inch, Nov 2024 · M4 Pro"
-    var windowDetailLine: String? {
+    fileprivate var windowDetailLine: String? {
         let parts = [detail, shortChip].compactMap { $0 }.filter { !$0.isEmpty }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     /// "Apple M4 Pro" → "M4 Pro"; drops Intel's ® / ™ noise.
-    var shortChip: String? {
+    fileprivate var shortChip: String? {
         guard var c = chip?.trimmingCharacters(in: .whitespaces), !c.isEmpty else { return nil }
         if c.hasPrefix("Apple ") { c.removeFirst("Apple ".count) }
         for noise in ["(R)", "(TM)", " CPU"] { c = c.replacingOccurrences(of: noise, with: "") }
@@ -280,8 +287,10 @@ extension BatterySnapshot {
             WindowRow(label: "Design Capacity", value: Fmt.mAh(designCapacityMAh)),
         ]
         if let manufactureDate {
-            rows.append(WindowRow(label: "Manufacture Date",
-                                  value: manufactureDate.formatted(Date.ISO8601FormatStyle(timeZone: .current).year().month().day())))
+            rows.append(
+                WindowRow(
+                    label: "Manufacture Date",
+                    value: manufactureDate.formatted(Date.ISO8601FormatStyle(timeZone: .current).year().month().day())))
         }
         rows += [
             WindowRow(label: "Charge Cycles", value: windowCycles),

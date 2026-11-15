@@ -58,7 +58,9 @@ public final class ChargeLimit: @unchecked Sendable {
     enum Signature {
         static let isEnabled = ("isMCLCurrentlyEnabled:", "Q24@0:8^@16")
         static let limit = ("getMCLLimitWithError:", "C24@0:8^@16")
-        static let obc = ("isOBCEngaged:isMaxChargeLimited:chargingOverrideAllowed:withError:", "B48@0:8^B16^B24^B32^@40")
+        static let obc = (
+            "isOBCEngaged:isMaxChargeLimited:chargingOverrideAllowed:withError:", "B48@0:8^B16^B24^B32^@40"
+        )
         static let disableTemporarily = ("temporarilyDisableMCL:", "B24@0:8^@16")
     }
 
@@ -66,9 +68,12 @@ public final class ChargeLimit: @unchecked Sendable {
     private typealias UInt64ErrorFn = @convention(c) (AnyObject, Selector, ErrorOut) -> UInt64
     private typealias UInt8ErrorFn = @convention(c) (AnyObject, Selector, ErrorOut) -> UInt8
     private typealias BoolErrorFn = @convention(c) (AnyObject, Selector, ErrorOut) -> Bool
-    private typealias OBCFn = @convention(c) (AnyObject, Selector, UnsafeMutablePointer<Bool>?,
-                                              UnsafeMutablePointer<Bool>?, UnsafeMutablePointer<Bool>?,
-                                              ErrorOut) -> Bool
+    private typealias OBCFn =
+        @convention(c) (
+            AnyObject, Selector, UnsafeMutablePointer<Bool>?,
+            UnsafeMutablePointer<Bool>?, UnsafeMutablePointer<Bool>?,
+            ErrorOut
+        ) -> Bool
 
     private let lock = NSLock()
     private var didLoad = false
@@ -94,7 +99,9 @@ public final class ChargeLimit: @unchecked Sendable {
             if error == nil, (1...100).contains(value) { limit = Int(value) }
         }
 
-        var engaged = false, maxLimited = false, overrideAllowed = false
+        var engaged = false
+        var maxLimited = false
+        var overrideAllowed = false
         var obcOK = false
         if let fn: OBCFn = method(client, Signature.obc) {
             var error: NSError?
@@ -102,16 +109,18 @@ public final class ChargeLimit: @unchecked Sendable {
         }
 
         guard enabled != nil || obcOK else { return nil }
-        return ChargeLimitStatus(isEnabled: enabled ?? false, limitPercent: limit,
-                                 isHoldingCharge: obcOK && (engaged || maxLimited),
-                                 overrideAllowed: obcOK && overrideAllowed)
+        return ChargeLimitStatus(
+            isEnabled: enabled ?? false, limitPercent: limit,
+            isHoldingCharge: obcOK && (engaged || maxLimited),
+            overrideAllowed: obcOK && overrideAllowed)
     }
 
     /// Same as the native Battery menu's "Charge to Full Now": lifts the limit until the
     /// battery is full, then macOS restores it by itself.
     public func chargeToFullNow() throws {
         guard let client = loadClient(),
-              let fn: BoolErrorFn = method(client, Signature.disableTemporarily) else {
+            let fn: BoolErrorFn = method(client, Signature.disableTemporarily)
+        else {
             throw ChargeLimitError.unavailable
         }
         var error: NSError?
@@ -129,13 +138,14 @@ public final class ChargeLimit: @unchecked Sendable {
         if didLoad { return client }
         didLoad = true
         guard dlopen(Self.frameworkPath, RTLD_NOW) != nil,
-              let cls = NSClassFromString(Self.className) as? NSObject.Type else { return nil }
+            let cls = NSClassFromString(Self.className) as? NSObject.Type
+        else { return nil }
         let allocSel = NSSelectorFromString("alloc")
         let initSel = NSSelectorFromString("initWithClientName:")
         guard cls.responds(to: allocSel), cls.instancesRespond(to: initSel),
-              // alloc returns +1 which init consumes; init returns +1 which we own.
-              let allocated = cls.perform(allocSel)?.takeUnretainedValue() as? NSObject,
-              let instance = allocated.perform(initSel, with: Self.clientName)?.takeRetainedValue() as? NSObject
+            // alloc returns +1 which init consumes; init returns +1 which we own.
+            let allocated = cls.perform(allocSel)?.takeUnretainedValue() as? NSObject,
+            let instance = allocated.perform(initSel, with: Self.clientName)?.takeRetainedValue() as? NSObject
         else { return nil }
         client = instance
         return instance
@@ -145,10 +155,11 @@ public final class ChargeLimit: @unchecked Sendable {
     private func method<F>(_ object: NSObject, _ signature: (String, String)) -> F? {
         let sel = NSSelectorFromString(signature.0)
         guard object.responds(to: sel),
-              let cls = object_getClass(object),
-              let method = class_getInstanceMethod(cls, sel),
-              let encoding = method_getTypeEncoding(method),
-              String(cString: encoding) == signature.1 else { return nil }
+            let cls = object_getClass(object),
+            let method = class_getInstanceMethod(cls, sel),
+            let encoding = method_getTypeEncoding(method),
+            String(cString: encoding) == signature.1
+        else { return nil }
         return unsafeBitCast(method_getImplementation(method), to: F.self)
     }
 }

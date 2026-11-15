@@ -26,12 +26,17 @@ public final class SMC {
         var status: UInt8 = 0
         var data8: UInt8 = 0
         var data32: UInt32 = 0
-        var bytes: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
-                    UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
-                    UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
-                    UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8) =
-            (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        var bytes:
+            (
+                UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+                UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+                UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+                UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8
+            ) =
+                (
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                )
     }
 
     private static let kernelIndex: UInt32 = 2
@@ -93,9 +98,10 @@ public final class SMC {
     private func call(_ input: inout ParamStruct) -> ParamStruct? {
         var output = ParamStruct()
         var outSize = MemoryLayout<ParamStruct>.stride
-        let kr = IOConnectCallStructMethod(connection, Self.kernelIndex,
-                                           &input, MemoryLayout<ParamStruct>.stride,
-                                           &output, &outSize)
+        let kr = IOConnectCallStructMethod(
+            connection, Self.kernelIndex,
+            &input, MemoryLayout<ParamStruct>.stride,
+            &output, &outSize)
         guard kr == kIOReturnSuccess, output.result == 0 else { return nil }
         return output
     }
