@@ -16,7 +16,8 @@ Manager, no third-party dependencies, no helper tools, no root.
 ## Non-goals (v1)
 
 - iPhone/iPad batteries (needs private MobileDevice framework) — tracked as a later idea.
-- Changing charging behaviour (charge limits, SMC writes). Read-only app.
+- Writing SMC keys or implementing our own charge limiter. The only controls are the
+  ones macOS itself offers in its Battery menu (F8), driven through macOS's own interfaces.
 - Cloud sync, accounts, analytics.
 
 ## Data sources
@@ -98,6 +99,26 @@ Compact rows under the flow: Battery Charge (bar + one-decimal %), Battery Healt
 - Menu bar format options (F1), refresh interval while open (1/2/5 s),
   Launch at login (`SMAppService.mainApp`), temperature unit (°C/°F).
 - Stored in `UserDefaults`.
+
+### F8 — Battery controls (mirror the native Battery menu)
+- **Energy Mode**: Automatic / Low Power / High Power, for the current power source.
+  Read: `pmset -g custom` (`powermode` 0/1/2 per "Battery Power"/"AC Power" section);
+  capabilities from `pmset -g cap` (`lowpowermode`, `highpowermode`; hide High Power when
+  absent). Write: `/usr/bin/pmset -b|-c powermode N` via an admin authorization prompt
+  (`NSAppleScript` `do shell script … with administrator privileges`). Later: privileged
+  helper (`SMAppService.daemon`) to avoid repeated prompts.
+- **Charge limit status**: "Charged to 80% Limit" when macOS's Manual Charge Limit holds the
+  charge. Read through PowerUI's `PowerUISmartChargeClient` (`isMCLCurrentlyEnabled:`,
+  `getMCLLimitWithError:`, `isOBCEngaged:isMaxChargeLimited:chargingOverrideAllowed:withError:`),
+  loaded at runtime with `dlopen` + ObjC runtime; every call optional and failure-tolerant.
+- **Charge to Full Now**: shown on AC when the limit holds the charge and override is
+  allowed; calls `temporarilyDisableMCL:` (same as the native menu item).
+- Private-API use is isolated in one file so it can be dropped if macOS changes it.
+
+### F9 — About
+Tab in the main window: app icon, name, version (build), author **Peter Ng**, copyright,
+one-line description, privacy statement (no network, no data collection), credits for
+data sources, "Copy Diagnostics" (bbstat-style text for bug reports).
 
 ### F7 — `bbstat` CLI (dev + power-user tool)
 `swift run bbstat` prints the current snapshot as human text; `--json` prints JSON.

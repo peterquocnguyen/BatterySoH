@@ -33,7 +33,8 @@ Native macOS menu bar battery monitor. Spec: `docs/SPEC.md` (features F1–F7). 
 
 ## Rules
 
-- Read-only app: never write SMC keys or change charging.
+- Never write SMC keys. The only controls are macOS's own (Energy Mode via `pmset`, charge-limit
+  override via PowerUI) — see SPEC F8.
 - Unknown hardware values are `nil` and render as `Fmt.dash` ("—"). Never show 0 °C / 0 W
   for "unknown".
 - Light appearance is the primary design; dark must also look right (system setting).
