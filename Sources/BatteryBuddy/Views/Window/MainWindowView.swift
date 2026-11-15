@@ -4,7 +4,7 @@ import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// F4/F5 — the main window: a tab switcher over "This Mac" and "History".
+/// F4/F5/F9 — the main window: a tab switcher over "This Mac", "History" and "About".
 /// Tab contents are custom-drawn views; only this outer layer adds the ScrollView.
 struct MainWindowView: View {
     @Environment(BatteryModel.self) private var model
@@ -57,6 +57,11 @@ struct MainWindowView: View {
                 HistoryContent(history: model.history, deviceTitle: "This Mac (\(model.mac.name))",
                                onExport: model.history.isEmpty ? nil : exportCSV,
                                exportMessage: exportMessage)
+            case .about:
+                AboutContent(info: .current(mac: model.mac)) {
+                    AboutDiagnostics.report(info: .current(mac: model.mac), snapshot: model.snapshot,
+                                            lowPowerMode: lowPowerMode)
+                }
             }
         }
         .scrollBounceBehavior(.basedOnSize)
@@ -97,7 +102,7 @@ private enum WindowStorageKey {
 }
 
 enum WindowTab: String, CaseIterable, Identifiable {
-    case thisMac, history
+    case thisMac, history, about
 
     var id: String { rawValue }
 
@@ -105,6 +110,7 @@ enum WindowTab: String, CaseIterable, Identifiable {
         switch self {
         case .thisMac: return "This Mac"
         case .history: return "History"
+        case .about: return "About"
         }
     }
 
@@ -112,11 +118,12 @@ enum WindowTab: String, CaseIterable, Identifiable {
         switch self {
         case .thisMac: return "laptopcomputer"
         case .history: return "chart.xyaxis.line"
+        case .about: return "info.circle"
         }
     }
 }
 
-/// This Mac / History switcher. macOS 26+: a compact glass capsule with segments (like a
+/// This Mac / History / About switcher. macOS 26+: a compact glass capsule with segments (like a
 /// Tahoe segmented control). macOS 14–25: the toolbar-style icon-over-label tabs.
 /// Custom-drawn either way so `--render` can capture it.
 struct WindowTabBar: View {
@@ -245,6 +252,9 @@ enum WindowRenderEntries {
         var onBattery = BatterySnapshot.sampleOnBattery
         onBattery.manufactureDate = Calendar(identifier: .gregorian)
             .date(from: DateComponents(year: 2024, month: 10, day: 17))
+        let aboutInfo = AboutInfo(version: AboutInfo.fallbackVersion, build: AboutInfo.fallbackBuild,
+                                  copyright: AboutInfo.fallbackCopyright, osVersion: "macOS 27.2 (27C61)",
+                                  mac: mac, icon: AboutInfo.appIcon())
         let end = Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 11, day: 15)) ?? Date()
 
         return [
@@ -289,6 +299,16 @@ enum WindowRenderEntries {
             RenderEntry("window-history-empty") {
                 frame(.history) {
                     HistoryContent(history: [], deviceTitle: "This Mac (MacBook Pro)")
+                }
+            },
+            RenderEntry("window-about") {
+                frame(.about) {
+                    AboutContent(info: aboutInfo, diagnostics: { "" })
+                }
+            },
+            RenderEntry("window-about-copied") {
+                frame(.about) {
+                    AboutContent(info: aboutInfo, diagnostics: { "" }, showsCopied: true)
                 }
             },
             RenderEntry("settings") {
