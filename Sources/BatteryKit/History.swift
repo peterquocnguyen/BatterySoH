@@ -56,6 +56,8 @@ public enum HistoryAggregator {
     public static func csv(_ samples: [HistorySample]) -> String {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withFullDate]
+        // Samples are bucketed by local calendar day; print that day, not the UTC date.
+        f.timeZone = .current
         var lines = ["date,health_percent,cycle_count,full_charge_mah,design_mah"]
         for s in samples.sorted(by: { $0.date < $1.date }) {
             lines.append([f.string(from: s.date), String(format: "%.1f", s.healthPercent), String(s.cycleCount),

@@ -4,10 +4,13 @@ Native macOS menu bar battery monitor. Spec: `docs/SPEC.md` (features F1–F7). 
 
 ## Build / run / test
 
-- Toolchain: Swift 6.x via SwiftPM. Xcode is optional; Command Line Tools are enough.
+- Toolchain: Swift 6.x via SwiftPM. The app target needs Xcode (SwiftUI `@State` is a macro
+  in the macOS 27 SDK and CLT has no SwiftUIMacros plugin). BatteryKit, bbstat and the tests
+  build with Command Line Tools alone via `scripts/test.sh`.
 - `swift build` — builds everything. `swift run bbstat` — prints live battery data
   (`--json`, `--raw` registry dump, `--smc` temperature probe).
-- `swift test` — Swift Testing (`import Testing`), not XCTest.
+- `swift test` — Swift Testing (`import Testing`), not XCTest. `scripts/test.sh` does the
+  same and also works when only Command Line Tools are selected.
 - `.build/debug/BatteryBuddy --render <dir>` — headless render of every `RenderEntry`
   (popover states, window tabs) in light + dark to PNG, then exits. Use it to look at UI
   changes: render, then open the PNGs with the Read tool.
