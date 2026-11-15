@@ -68,4 +68,27 @@ if let a = s.adapter {
     row("Charger", "not connected")
 }
 if s.isChargeOnHold { row("Not charging reason", String(format: "0x%08X", s.notChargingReason ?? 0)) }
+
+// F8 controls (read-only here).
+let currentSource: PowerSourceKind = s.externalConnected ? .ac : .battery
+if let energy = EnergyModeControl.read() {
+    let perSource = PowerSourceKind.allCases.map { source -> String in
+        let mode = energy.modes[source]?.title ?? Fmt.dash
+        return "\(source.title): \(mode)\(source == currentSource ? " (now)" : "")"
+    }
+    row("Energy mode", perSource.joined(separator: " · "))
+    row("Energy modes offered", energy.supportedModes(for: currentSource).map(\.title).joined(separator: ", ")
+        + " (\(currentSource.title.lowercased()))")
+} else {
+    row("Energy mode", "unavailable (no powermode in pmset)")
+}
+if let limit = ChargeLimit.shared.status() {
+    var parts = [limit.isEnabled ? "on" : "off"]
+    parts.append(limit.limitPercent.map { "\($0)%" } ?? "limit \(Fmt.dash)")
+    parts.append(limit.isHoldingCharge ? "holding charge" : "not holding")
+    parts.append(limit.overrideAllowed ? "override allowed" : "no override")
+    row("Charge limit", parts.joined(separator: " · "))
+} else {
+    row("Charge limit", "unavailable (PowerUI)")
+}
 row("Gauge / serial", "\(s.gaugeName ?? Fmt.dash) / \(s.serial ?? Fmt.dash)")

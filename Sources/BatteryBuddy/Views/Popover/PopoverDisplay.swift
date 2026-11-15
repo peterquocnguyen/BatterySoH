@@ -6,17 +6,46 @@ import SwiftUI
 struct PopoverDisplay {
     let snapshot: BatterySnapshot
     var temperatureUnit: Fmt.TemperatureUnit = .celsius
+    /// macOS charge limit (F8), when PowerUI could be read.
+    var chargeLimit: ChargeLimitStatus?
 
     var state: PowerState { snapshot.powerState }
 
+    // MARK: Charge limit (F8)
+
+    /// The limit percent when macOS's charge limit is what holds the charge right now.
+    var heldAtLimitPercent: Int? {
+        guard state == .onACNotCharging || state == .full else { return nil }
+        return chargeLimit?.heldAtPercent
+    }
+
+    /// "Charge to Full Now" makes sense: on AC, held by the limit, override allowed, not full.
+    var canChargeToFull: Bool {
+        guard heldAtLimitPercent != nil, let limit = chargeLimit else { return false }
+        return snapshot.externalConnected && limit.overrideAllowed && snapshot.chargePercent < 100
+    }
+
     // MARK: Header
+
+    /// BatteryKit's `statusTitle`, refined with the charge limit: "Charged to 80% limit".
+    var statusTitle: String {
+        if let percent = heldAtLimitPercent { return "Charged to \(percent)% limit" }
+        return snapshot.statusTitle
+    }
+
+    /// Under the big percent: BatteryKit's summary, or "held at limit".
+    var timeSummary: String {
+        heldAtLimitPercent != nil ? "held at limit" : snapshot.timeSummary
+    }
 
     var statusIcon: String {
         switch state {
         case .charging: return "bolt.fill"
         case .full: return "checkmark.circle.fill"
         case .onBattery: return "battery.75percent"
-        case .onACNotCharging: return snapshot.isChargeOnHold ? "pause.circle.fill" : "powerplug.fill"
+        case .onACNotCharging:
+            if heldAtLimitPercent != nil { return "checkmark.circle.fill" }
+            return snapshot.isChargeOnHold ? "pause.circle.fill" : "powerplug.fill"
         case .drainingOnAC: return "exclamationmark.triangle.fill"
         }
     }
@@ -133,6 +162,7 @@ struct PopoverDisplay {
         case .full:
             return ("idle", "fully charged")
         case .onACNotCharging:
+            if let percent = heldAtLimitPercent { return ("idle", "at \(percent)% limit") }
             return ("idle", snapshot.isChargeOnHold ? "on hold" : "not charging")
         }
     }
@@ -162,7 +192,9 @@ struct PopoverDisplay {
         case .onBattery, .drainingOnAC: return ("Time until empty", Fmt.duration(minutes: snapshot.minutesToEmpty))
         case .charging: return ("Time until full", Fmt.duration(minutes: snapshot.minutesToFull))
         case .full: return ("Time until full", "Fully charged")
-        case .onACNotCharging: return ("Time until full", snapshot.isChargeOnHold ? "On hold" : "Not charging")
+        case .onACNotCharging:
+            if let percent = heldAtLimitPercent { return ("Time until full", "Held at \(percent)% limit") }
+            return ("Time until full", snapshot.isChargeOnHold ? "On hold" : "Not charging")
         }
     }
 

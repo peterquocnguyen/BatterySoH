@@ -90,7 +90,7 @@ struct PopoverFlowDiagram: View {
             return "Charger supplies \(Fmt.watts(display.powerInW)) and the battery at \(display.chargeText) "
                 + "adds \(Fmt.watts(s.batteryPowerW.map { abs($0) })). Mac \(display.macNodeValue)."
         case .full, .onACNotCharging:
-            return "Charger supplies \(Fmt.watts(display.powerInW)) to the Mac. Battery \(s.statusTitle.lowercased()) at \(display.chargeText)."
+            return "Charger supplies \(Fmt.watts(display.powerInW)) to the Mac. Battery \(display.statusTitle.lowercased()) at \(display.chargeText)."
         }
     }
 }
