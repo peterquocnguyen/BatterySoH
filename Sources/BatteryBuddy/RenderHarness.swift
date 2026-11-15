@@ -31,9 +31,10 @@ enum RenderHarness {
             for (suffix, scheme, appearance) in [("light", ColorScheme.light, NSAppearance.Name.aqua),
                                                  ("dark", ColorScheme.dark, NSAppearance.Name.darkAqua)] {
                 NSAppearance(named: appearance)?.performAsCurrentDrawingAppearance {
+                    // Background inside the colour-scheme override so it resolves dark too.
                     let content = entry.view
-                        .environment(\.colorScheme, scheme)
                         .background(Color(nsColor: .windowBackgroundColor))
+                        .environment(\.colorScheme, scheme)
                     let renderer = ImageRenderer(content: content)
                     renderer.scale = 2
                     guard let cg = renderer.cgImage else {
