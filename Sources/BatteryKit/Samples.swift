@@ -40,8 +40,26 @@ public extension BatterySnapshot {
         adapter: sampleAdapter, systemLoadW: 6.7, systemPowerInW: 6.7,
         serial: "SAMPLE", gaugeName: "bq40z651")
 
+    /// On a 65 W charger while the Mac pulls ~74 W: battery drains at 8.8 W anyway.
+    static let sampleDraining = BatterySnapshot(
+        chargePercent: 80, rawChargePercent: 79.6, currentCapacityMAh: 4455,
+        fullChargeCapacityMAh: 5596, nominalChargeCapacityMAh: 5748, designCapacityMAh: 6249,
+        cycleCount: 183, designCycleCount: 1000, voltageMV: 12230, amperageMA: -720, temperatureC: 38.2,
+        isCharging: false, externalConnected: true, minutesToEmpty: 372,
+        adapter: sampleAdapter, systemLoadW: 73.8, systemPowerInW: 65.0,
+        serial: "SAMPLE", gaugeName: "bq40z651")
+
+    /// Seconds after unplugging: amperage not updated yet (0 A), no time estimate.
+    static let sampleJustUnplugged = BatterySnapshot(
+        chargePercent: 80, rawChargePercent: 79.0, currentCapacityMAh: 4421,
+        fullChargeCapacityMAh: 5596, nominalChargeCapacityMAh: 5748, designCapacityMAh: 6249,
+        cycleCount: 183, designCycleCount: 1000, voltageMV: 12340, amperageMA: 0, temperatureC: 35.4,
+        isCharging: false, externalConnected: false,
+        systemLoadW: 7.4, serial: "SAMPLE", gaugeName: "bq40z651")
+
     static let allSamples: [(name: String, snapshot: BatterySnapshot)] = [
         ("charging", sampleCharging), ("on-battery", sampleOnBattery), ("on-hold", sampleOnHold),
+        ("draining", sampleDraining), ("just-unplugged", sampleJustUnplugged),
     ]
 }
 

@@ -80,6 +80,7 @@ public extension BatterySnapshot {
         case .full: return "Fully charged"
         case .onBattery: return "On battery"
         case .onACNotCharging: return isChargeOnHold ? "Charging on hold" : "Charger connected"
+        case .drainingOnAC: return "Draining on charger"
         }
     }
 
@@ -92,6 +93,7 @@ public extension BatterySnapshot {
             return minutesToEmpty.map { "\(Fmt.duration(minutes: $0)) left" } ?? "calculating…"
         case .full: return "fully charged"
         case .onACNotCharging: return "not charging"
+        case .drainingOnAC: return "draining despite charger"
         }
     }
 }

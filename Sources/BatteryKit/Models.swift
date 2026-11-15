@@ -61,6 +61,9 @@ public enum PowerState: String, Codable, Sendable {
     case onBattery
     /// Fully charged on AC.
     case full
+    /// Charger connected, but the Mac draws more than the charger supplies, so the battery
+    /// discharges anyway (weak charger, heavy load).
+    case drainingOnAC
 }
 
 /// Everything Battery Buddy knows about the battery at one moment.
@@ -150,9 +153,13 @@ public struct BatterySnapshot: Codable, Equatable, Sendable {
 // MARK: - Derived values
 
 public extension BatterySnapshot {
+    /// Battery discharge (W) on AC above which we call it "draining", not idle noise.
+    static let drainThresholdW = 0.5
+
     var powerState: PowerState {
         if !externalConnected { return .onBattery }
         if isCharging { return .charging }
+        if let w = batteryPowerW, w <= -Self.drainThresholdW { return .drainingOnAC }
         if fullyCharged { return .full }
         return .onACNotCharging
     }
@@ -176,6 +183,9 @@ public extension BatterySnapshot {
         switch powerState {
         case .onBattery:
             return batteryPowerW.map { abs($0) }
+        case .drainingOnAC:
+            guard let inW = systemPowerInW ?? adapter?.watts.map(Double.init) else { return batteryPowerW.map { abs($0) } }
+            return inW + abs(batteryPowerW ?? 0)
         default:
             guard let inW = systemPowerInW else { return nil }
             return max(0, inW - max(0, batteryPowerW ?? 0))
@@ -185,7 +195,7 @@ public extension BatterySnapshot {
     /// Minutes for whichever direction is relevant right now.
     var minutesRemaining: Int? {
         switch powerState {
-        case .onBattery: return minutesToEmpty
+        case .onBattery, .drainingOnAC: return minutesToEmpty
         case .charging: return minutesToFull
         default: return nil
         }
@@ -193,5 +203,12 @@ public extension BatterySnapshot {
 
     var isChargeOnHold: Bool {
         externalConnected && !isCharging && !fullyCharged && (notChargingReason ?? 0) != 0
+            && powerState != .drainingOnAC
+    }
+
+    /// Watts the Mac needs beyond what the charger supplies (only when draining on AC).
+    var chargerDeficitW: Double? {
+        guard powerState == .drainingOnAC, let w = batteryPowerW else { return nil }
+        return abs(w)
     }
 }

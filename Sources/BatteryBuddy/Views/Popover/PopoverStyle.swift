@@ -17,6 +17,8 @@ enum PopoverPalette {
     static let charger = dynamic(light: (0.00, 0.48, 0.80), dark: (0.39, 0.78, 1.00))
     static let warning = dynamic(light: (0.80, 0.58, 0.00), dark: (1.00, 0.80, 0.04))
     static let critical = dynamic(light: (0.82, 0.16, 0.13), dark: (1.00, 0.33, 0.30))
+    /// Battery draining although a charger is connected.
+    static let drain = dynamic(light: (0.80, 0.11, 0.14), dark: (1.00, 0.38, 0.36))
     /// Text drawn on a `charge`-filled capsule (white on dark green, near-black on bright green).
     static let onCharge = dynamic(light: (1, 1, 1), dark: (0.04, 0.16, 0.07))
 
@@ -110,7 +112,7 @@ struct PopoverTile: View {
         .padding(.horizontal, 11)
         .padding(.vertical, 9)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(PopoverPalette.tileFill))
+        .background(PopoverPlatter(cornerRadius: 9))
         .accessibilityElement(children: .combine)
     }
 }
@@ -136,22 +138,41 @@ struct PopoverBar: View {
     }
 }
 
+/// Module background for tiles: a faint fill, plus a hairline edge on Liquid Glass so the
+/// module reads as a platter on the translucent panel (like Control Center modules).
+struct PopoverPlatter: View {
+    var cornerRadius: CGFloat
+    var fill: Color = PopoverPalette.tileFill
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        shape
+            .fill(fill)
+            .overlay {
+                if LiquidGlass.isSupported {
+                    shape.strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5)
+                }
+            }
+    }
+}
+
 // MARK: - Buttons
 
-/// Small rounded footer button that ImageRenderer can draw (no AppKit bezel).
+/// Small footer button that ImageRenderer can draw (no AppKit bezel). Capsule on macOS 26+
+/// to match Liquid Glass controls, rounded rect before.
 struct PopoverFooterButtonStyle: ButtonStyle {
     @State private var hovering = false
 
     func makeBody(configuration: Configuration) -> some View {
+        let shape = LiquidGlass.isSupported
+            ? AnyShape(Capsule())
+            : AnyShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         configuration.label
             .font(.system(size: 12, weight: .medium))
-            .padding(.horizontal, 9)
+            .padding(.horizontal, LiquidGlass.isSupported ? 10 : 9)
             .padding(.vertical, 5)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.primary.opacity(configuration.isPressed ? 0.14 : (hovering ? 0.09 : 0.05)))
-            )
-            .contentShape(Rectangle())
+            .background(shape.fill(Color.primary.opacity(configuration.isPressed ? 0.14 : (hovering ? 0.09 : 0.05))))
+            .contentShape(shape)
             .onHover { hovering = $0 }
     }
 }

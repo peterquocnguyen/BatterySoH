@@ -193,7 +193,7 @@ private extension MacInfo {
 
 extension BatterySnapshot {
     fileprivate var windowChargeTint: Color {
-        guard powerState == .onBattery else { return .green }
+        guard powerState == .onBattery || powerState == .drainingOnAC else { return .green }
         if chargePercent <= 10 { return .red }
         if chargePercent <= 20 { return .orange }
         return .green
@@ -205,6 +205,7 @@ extension BatterySnapshot {
         case .full: return "checkmark.circle.fill"
         case .onACNotCharging: return isChargeOnHold ? "pause.circle.fill" : "powerplug.fill"
         case .onBattery: return "battery.75percent"
+        case .drainingOnAC: return "exclamationmark.triangle.fill"
         }
     }
 
@@ -213,13 +214,18 @@ extension BatterySnapshot {
         case .charging, .full: return .green
         case .onACNotCharging: return isChargeOnHold ? .orange : .secondary
         case .onBattery: return .orange
+        case .drainingOnAC: return PopoverPalette.drain
         }
     }
 
-    /// "Charging · full in 58 min", "On battery · 4h 8m left", "Charging on hold".
+    /// "Charging · full in 58 min", "On battery · 4h 8m left", "Charging on hold",
+    /// "Draining on charger · 6h 12m left".
     fileprivate var windowStatusLine: String {
         switch powerState {
         case .charging, .onBattery: return "\(statusTitle) · \(timeSummary)"
+        case .drainingOnAC:
+            guard let minutesToEmpty, minutesToEmpty > 0 else { return statusTitle }
+            return "\(statusTitle) · \(Fmt.duration(minutes: minutesToEmpty)) left"
         case .full, .onACNotCharging: return statusTitle
         }
     }
@@ -274,6 +280,8 @@ extension BatterySnapshot {
         guard let w = batteryPowerW else { return WindowRow(label: "Battery Power", value: Fmt.dash) }
         if w > 0.05 { return WindowRow(label: "Charging with", value: Fmt.watts(w)) }
         if w < -0.05 { return WindowRow(label: "Discharging with", value: Fmt.watts(abs(w))) }
+        // Just unplugged: the gauge still reports 0 A for a few seconds.
+        if powerState == .onBattery { return WindowRow(label: "Discharging with", value: "estimating…") }
         return WindowRow(label: "Battery Power", value: "Not charging")
     }
 

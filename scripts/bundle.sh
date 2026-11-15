@@ -45,6 +45,16 @@ echo "==> assembling $app"
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$binary" "$app/Contents/MacOS/$executable"
+# SwiftPM's link step records the deployment target (14.0) as the SDK version in
+# LC_BUILD_VERSION. AppKit/SwiftUI gate the macOS 26+ design on the linked SDK, so without
+# this the app runs in compatibility mode: old opaque materials instead of Liquid Glass for
+# the menu bar panel and title bar. Stamp the SDK we actually built against (re-signed below).
+sdk_version="$(xcrun --sdk macosx --show-sdk-version)"
+min_os="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$info_plist")"
+echo "==> LC_BUILD_VERSION: minos $min_os, sdk $sdk_version"
+xcrun vtool -set-build-version macos "$min_os" "$sdk_version" -replace \
+    -output "$app/Contents/MacOS/$executable" "$app/Contents/MacOS/$executable" 2>&1 \
+    | { grep -v "code signature will be invalid" || true; } >&2
 cp "$info_plist" "$app/Contents/Info.plist"
 printf 'APPL????' > "$app/Contents/PkgInfo"
 if [[ -f "$icon" ]]; then

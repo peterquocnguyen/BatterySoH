@@ -50,7 +50,7 @@ struct HistoryContent: View {
             Spacer(minLength: 8)
             if let onExport {
                 Button("Export CSV…", action: onExport)
-                    .buttonStyle(WindowPillButtonStyle())
+                    .windowPillButton()
                     .help("Save every daily sample as a CSV file")
             }
         }

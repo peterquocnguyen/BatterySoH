@@ -14,7 +14,12 @@ Native macOS menu bar battery monitor. Spec: `docs/SPEC.md` (features F1–F7). 
 - `.build/debug/BatteryBuddy --render <dir>` — headless render of every `RenderEntry`
   (popover states, window tabs) in light + dark to PNG, then exits. Use it to look at UI
   changes: render, then open the PNGs with the Read tool.
-- `scripts/bundle.sh` — release build wrapped into `build/Battery Buddy.app`.
+- `scripts/bundle.sh` — release build wrapped into `build/Battery Buddy.app`. It re-stamps
+  the binary's LC_BUILD_VERSION with the real SDK version (SwiftPM records 14.0); without it
+  macOS 26+ runs the app in compatibility mode with no Liquid Glass. So glass only shows in the
+  bundle, not in a raw `.build/debug/BatteryBuddy` run.
+- `BB_DEBUG_WINDOWS=1 "build/Battery Buddy.app/Contents/MacOS/BatteryBuddy"` logs the popover and
+  window view hierarchies to stderr once.
 
 ## Layout
 

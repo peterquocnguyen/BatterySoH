@@ -87,6 +87,8 @@ enum SettingsKey {
     static let showPercent = "menuBar.showPercent"
     static let showTime = "menuBar.showTime"
     static let showWatts = "menuBar.showWatts"
+    /// Menu bar shows the one-decimal raw percent (e.g. 79.0%) instead of what macOS shows.
+    static let precisePercent = "menuBar.precisePercent"
     static let refreshInterval = "refreshInterval"
     static let temperatureUnit = "temperatureUnit"
 }

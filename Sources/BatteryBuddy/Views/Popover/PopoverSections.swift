@@ -105,6 +105,33 @@ struct PopoverProfileChips: View {
     }
 }
 
+// MARK: - Draining banner
+
+/// Red-tinted note under the tiles explaining why the battery drains on a charger.
+struct PopoverDrainBanner: View {
+    let text: String
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(PopoverPalette.drain)
+                .padding(.top, 1)
+            Text(text)
+                .font(.system(size: 12.5))
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
+        .background(shape.fill(PopoverPalette.drain.opacity(0.12)))
+        .overlay(shape.strokeBorder(PopoverPalette.drain.opacity(0.28), lineWidth: 0.5))
+        .accessibilityElement(children: .combine)
+    }
+}
+
 // MARK: - Summary rows (F3)
 
 struct PopoverSummary: View {
@@ -114,8 +141,8 @@ struct PopoverSummary: View {
         let snapshot = display.snapshot
         let time = display.timeRow
         VStack(spacing: 9) {
-            barRow("Battery Charge", value: Fmt.percent(display.preciseCharge, decimals: 1),
-                   percent: display.preciseCharge, color: display.chargeColor)
+            barRow("Battery Charge", value: display.chargeText,
+                   percent: display.chargeFraction * 100, color: display.chargeColor)
             barRow("Battery Health", value: Fmt.percent(snapshot.healthPercent, decimals: 1),
                    percent: snapshot.healthPercent, color: PopoverPalette.health(snapshot.healthPercent))
             VStack(spacing: 6) {

@@ -59,13 +59,15 @@ struct DerivedValueTests {
         #expect(abs(load - (65 - 47.2004)) < 0.0001)
     }
 
-    @Test func macLoadOnACIgnoresDischargeSign() {
-        // On AC but battery assisting (negative power): load is just power in.
+    @Test func macLoadOnACAddsBatteryAssist() {
+        // On AC with the battery assisting (draining on charger): load = power in + battery out.
         var s = BatterySnapshot.sampleOnHold
         s.systemLoadW = nil
         s.systemPowerInW = 30
         s.amperageMA = -500
-        #expect(s.macLoadW == 30)
+        #expect(s.powerState == .drainingOnAC)
+        let load = try! #require(s.macLoadW)
+        #expect(abs(load - (30 + 12.356 * 0.5)) < 0.001)
     }
 
     @Test func macLoadOnACNeverNegative() {

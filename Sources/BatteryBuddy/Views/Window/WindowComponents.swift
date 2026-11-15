@@ -5,9 +5,11 @@ import SwiftUI
 // Small custom-drawn building blocks shared by the window tabs. Everything here is pure
 // SwiftUI drawing (no AppKit-backed controls) so `--render` can capture it.
 
-/// Rounded "inset grouped" container: white on light, a faint lift on dark.
+/// Rounded "inset grouped" container: white on light, a faint lift on dark. On macOS 26+ it is
+/// a translucent platter so the window's material shows through.
 struct WindowCard<Content: View>: View {
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.renderHarness) private var renderHarness
     private let content: Content
 
     init(@ViewBuilder content: () -> Content) {
@@ -18,9 +20,15 @@ struct WindowCard<Content: View>: View {
         let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
         content
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(shape.fill(scheme == .dark ? Color.white.opacity(0.06)
-                                                    : Color(nsColor: .controlBackgroundColor)))
+            .background(shape.fill(fill))
             .overlay(shape.strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+    }
+
+    private var fill: Color {
+        if LiquidGlass.isSupported, !renderHarness {
+            return scheme == .dark ? Color.white.opacity(0.07) : Color.white.opacity(0.62)
+        }
+        return scheme == .dark ? Color.white.opacity(0.06) : Color(nsColor: .controlBackgroundColor)
     }
 }
 
@@ -99,6 +107,23 @@ struct WindowMeterBar: View {
         .frame(height: height)
         .accessibilityElement()
         .accessibilityValue(label)
+    }
+}
+
+extension View {
+    /// Native glass button on macOS 26+, else the custom-drawn pill (which also renders headlessly).
+    func windowPillButton() -> some View { modifier(WindowPillButtonModifier()) }
+}
+
+private struct WindowPillButtonModifier: ViewModifier {
+    @Environment(\.renderHarness) private var renderHarness
+
+    func body(content: Content) -> some View {
+        if !renderHarness, #available(macOS 26, *) {
+            content.buttonStyle(.glass)
+        } else {
+            content.buttonStyle(WindowPillButtonStyle())
+        }
     }
 }
 

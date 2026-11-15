@@ -15,32 +15,51 @@ struct MainWindowView: View {
     @State private var exportMessage: String?
 
     var body: some View {
-        VStack(spacing: 0) {
-            WindowTabBar(selection: $tab)
-            WindowHairline()
-            ScrollView {
-                switch tab {
-                case .thisMac:
-                    WindowThisMacContent(mac: model.mac, snapshot: model.snapshot,
-                                         temperatureUnit: temperatureUnit, lowPowerMode: lowPowerMode,
-                                         detailsExpanded: $detailsExpanded)
-                case .history:
-                    HistoryContent(history: model.history, deviceTitle: "This Mac (\(model.mac.name))",
-                                   onExport: model.history.isEmpty ? nil : exportCSV,
-                                   exportMessage: exportMessage)
-                }
-            }
-            .scrollBounceBehavior(.basedOnSize)
-        }
-        .frame(width: WindowLayout.width)
-        .frame(minHeight: 480, idealHeight: WindowLayout.height, maxHeight: 900)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .onAppear { model.surfaceAppeared() }
+        layout
+            .frame(width: WindowLayout.width)
+            .frame(minHeight: 480, idealHeight: WindowLayout.height, maxHeight: 900)
+            .debugWindowDump("main window")
+            .onAppear { model.surfaceAppeared() }
         .onDisappear { model.surfaceDisappeared() }
         .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)
             .receive(on: RunLoop.main)) { _ in
             lowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
         }
+    }
+
+    @ViewBuilder
+    private var layout: some View {
+        if #available(macOS 26, *) {
+            // Liquid Glass: translucent window, content scrolls under the floating glass switcher
+            // and the transparent title bar.
+            scrollContent
+                .safeAreaInset(edge: .top, spacing: 0) { WindowTabBar(selection: $tab) }
+                .containerBackground(.thinMaterial, for: .window)
+                .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+        } else {
+            VStack(spacing: 0) {
+                WindowTabBar(selection: $tab)
+                WindowHairline()
+                scrollContent
+            }
+            .background(Color(nsColor: .windowBackgroundColor))
+        }
+    }
+
+    private var scrollContent: some View {
+        ScrollView {
+            switch tab {
+            case .thisMac:
+                WindowThisMacContent(mac: model.mac, snapshot: model.snapshot,
+                                     temperatureUnit: temperatureUnit, lowPowerMode: lowPowerMode,
+                                     detailsExpanded: $detailsExpanded)
+            case .history:
+                HistoryContent(history: model.history, deviceTitle: "This Mac (\(model.mac.name))",
+                               onExport: model.history.isEmpty ? nil : exportCSV,
+                               exportMessage: exportMessage)
+            }
+        }
+        .scrollBounceBehavior(.basedOnSize)
     }
 
     private func exportCSV() {
@@ -97,21 +116,96 @@ enum WindowTab: String, CaseIterable, Identifiable {
     }
 }
 
-/// Toolbar-style icon + label tab switcher (custom-drawn so it renders headlessly).
+/// This Mac / History switcher. macOS 26+: a compact glass capsule with segments (like a
+/// Tahoe segmented control). macOS 14–25: the toolbar-style icon-over-label tabs.
+/// Custom-drawn either way so `--render` can capture it.
 struct WindowTabBar: View {
     @Binding var selection: WindowTab
+    @Environment(\.renderHarness) private var renderHarness
 
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(WindowTab.allCases) { tab in
-                WindowTabButton(tab: tab, isSelected: tab == selection) { selection = tab }
+        if LiquidGlass.isSupported {
+            HStack(spacing: 2) {
+                ForEach(WindowTab.allCases) { tab in
+                    WindowSegmentButton(tab: tab, isSelected: tab == selection) { selection = tab }
+                }
             }
+            .padding(3)
+            .modifier(WindowGlassCapsule(live: !renderHarness))
+            .frame(maxWidth: .infinity)
+            .padding(.top, 6)
+            .padding(.bottom, 4)
+        } else {
+            HStack(spacing: 6) {
+                ForEach(WindowTab.allCases) { tab in
+                    WindowTabButton(tab: tab, isSelected: tab == selection) { selection = tab }
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
     }
 }
 
+/// Glass capsule behind the segments; a flat translucent capsule where glass can't draw.
+private struct WindowGlassCapsule: ViewModifier {
+    var live: Bool
+
+    func body(content: Content) -> some View {
+        if live, #available(macOS 26, *) {
+            GlassEffectContainer {
+                content.glassEffect(.regular.interactive(), in: .capsule)
+            }
+        } else {
+            content
+                .background(Capsule().fill(Color.primary.opacity(0.06)))
+                .overlay(Capsule().strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+        }
+    }
+}
+
+/// One segment of the glass switcher: icon + title, the selected one raised.
+private struct WindowSegmentButton: View {
+    let tab: WindowTab
+    let isSelected: Bool
+    let action: () -> Void
+    @Environment(\.colorScheme) private var scheme
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: tab.symbol)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                Text(tab.title)
+                    .font(.system(size: 12.5, weight: isSelected ? .semibold : .medium))
+                    .foregroundStyle(isSelected ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 26)
+            .background(selectionFill)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .accessibilityLabel(tab.title)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    @ViewBuilder
+    private var selectionFill: some View {
+        if isSelected {
+            Capsule()
+                .fill(scheme == .dark ? Color.white.opacity(0.16) : Color.white.opacity(0.92))
+                .shadow(color: .black.opacity(scheme == .dark ? 0 : 0.10), radius: 1.5, y: 0.5)
+        } else if hovering {
+            Capsule().fill(Color.primary.opacity(0.06))
+        }
+    }
+}
+
+/// Toolbar-style icon-over-label tab (macOS 14–25).
 private struct WindowTabButton: View {
     let tab: WindowTab
     let isSelected: Bool
@@ -166,6 +260,18 @@ enum WindowRenderEntries {
                                          lowPowerMode: true, detailsExpanded: .constant(false))
                 }
             },
+            RenderEntry("window-thismac-draining") {
+                frame(.thisMac) {
+                    WindowThisMacContent(mac: mac, snapshot: .sampleDraining, temperatureUnit: .celsius,
+                                         lowPowerMode: false, detailsExpanded: .constant(true))
+                }
+            },
+            RenderEntry("window-thismac-just-unplugged") {
+                frame(.thisMac) {
+                    WindowThisMacContent(mac: mac, snapshot: .sampleJustUnplugged, temperatureUnit: .celsius,
+                                         lowPowerMode: false, detailsExpanded: .constant(false))
+                }
+            },
             RenderEntry("window-thismac-nobattery") {
                 frame(.thisMac) {
                     WindowThisMacContent(mac: MacInfo(name: "Mac mini", detail: "2024", chip: "Apple M4",
@@ -198,7 +304,7 @@ enum WindowRenderEntries {
     private static func frame<Content: View>(_ tab: WindowTab, @ViewBuilder _ content: () -> Content) -> some View {
         VStack(spacing: 0) {
             WindowTabBar(selection: .constant(tab))
-            WindowHairline()
+            if !LiquidGlass.isSupported { WindowHairline() }
             content()
             Spacer(minLength: 0)
         }

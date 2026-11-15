@@ -121,7 +121,7 @@ public final class BatteryReader {
         guard let dict = SmartBatteryRegistry.read() else { return nil }
         var snap = BatteryParser.parse(dict, now: now)
         if let times = PowerSources.internalBatteryTimes() {
-            snap.minutesToEmpty = times.minutesToEmpty ?? (snap.powerState == .onBattery ? snap.minutesToEmpty : nil)
+            snap.minutesToEmpty = times.minutesToEmpty ?? ([.onBattery, .drainingOnAC].contains(snap.powerState) ? snap.minutesToEmpty : nil)
             snap.minutesToFull = times.minutesToFull ?? (snap.powerState == .charging ? snap.minutesToFull : nil)
         }
         if snap.temperatureC == nil {

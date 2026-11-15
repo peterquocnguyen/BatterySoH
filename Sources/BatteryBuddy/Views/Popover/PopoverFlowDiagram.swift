@@ -5,6 +5,7 @@ import SwiftUI
 /// - charging: both links active, flowing left → right
 /// - on AC, not charging: charger → Mac active, Mac ↔ battery idle
 /// - on battery: charger dimmed, battery → Mac flowing right → left
+/// - draining on AC: both links flow *into* the Mac (charger → Mac and battery → Mac)
 struct PopoverFlowDiagram: View {
     let display: PopoverDisplay
     /// False while the popover is closed, so the timeline stops ticking.
@@ -40,7 +41,7 @@ struct PopoverFlowDiagram: View {
             FlowLink(top: link.top, bottom: link.bottom,
                      color: linkColor,
                      direction: linkDirection,
-                     period: PopoverDisplay.period(forWatts: snapshot.batteryPowerW),
+                     period: PopoverDisplay.period(forWatts: linkWatts),
                      animate: animate)
                 .frame(height: nodeSize)
             FlowNode(caption: "Battery", value: display.chargeText, size: nodeSize, dimmed: false) {
@@ -58,7 +59,7 @@ struct PopoverFlowDiagram: View {
     private var linkDirection: FlowLink.Direction {
         switch display.state {
         case .charging: return .forward
-        case .onBattery: return .backward
+        case .onBattery, .drainingOnAC: return .backward
         case .full, .onACNotCharging: return .none
         }
     }
@@ -67,8 +68,14 @@ struct PopoverFlowDiagram: View {
         switch display.state {
         case .charging: return PopoverPalette.charge
         case .onBattery: return PopoverPalette.discharge
+        case .drainingOnAC: return PopoverPalette.drain
         case .full, .onACNotCharging: return .secondary
         }
+    }
+
+    /// Watts on the Mac ↔ battery link (estimated from the Mac's load right after unplugging).
+    private var linkWatts: Double? {
+        display.state == .onBattery ? display.dischargeW : display.snapshot.batteryPowerW
     }
 
     private var accessibilityText: String {
@@ -79,6 +86,9 @@ struct PopoverFlowDiagram: View {
                 + "\(display.batteryLink.top) into the battery at \(display.chargeText)."
         case .onBattery:
             return "Charger unplugged. Battery at \(display.chargeText) supplies \(display.batteryLink.top) to the Mac."
+        case .drainingOnAC:
+            return "Charger supplies \(Fmt.watts(display.powerInW)) and the battery at \(display.chargeText) "
+                + "adds \(Fmt.watts(s.batteryPowerW.map { abs($0) })). Mac \(display.macNodeValue)."
         case .full, .onACNotCharging:
             return "Charger supplies \(Fmt.watts(display.powerInW)) to the Mac. Battery \(s.statusTitle.lowercased()) at \(display.chargeText)."
         }

@@ -34,6 +34,7 @@ enum RenderHarness {
                     // Background inside the colour-scheme override so it resolves dark too.
                     let content = entry.view
                         .background(Color(nsColor: .windowBackgroundColor))
+                        .environment(\.renderHarness, true)
                         .environment(\.colorScheme, scheme)
                     let renderer = ImageRenderer(content: content)
                     renderer.scale = 2

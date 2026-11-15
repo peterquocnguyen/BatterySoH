@@ -3,17 +3,19 @@ import SwiftUI
 
 // MARK: - F1 Menu bar item
 
-/// Menu bar title: battery glyph + "67.5% (4h 8m)". MenuBarExtra labels only render an
+/// Menu bar title: battery glyph + "67% (4h 8m)". MenuBarExtra labels only render an
 /// Image and a Text, so this stays deliberately flat.
 struct MenuBarLabel: View {
     @Environment(BatteryModel.self) private var model
     @AppStorage(SettingsKey.showPercent) private var showPercent = true
     @AppStorage(SettingsKey.showTime) private var showTime = true
     @AppStorage(SettingsKey.showWatts) private var showWatts = false
+    @AppStorage(SettingsKey.precisePercent) private var precisePercent = false
 
     var body: some View {
         let snapshot = model.snapshot
-        let title = Self.title(for: snapshot, showPercent: showPercent, showTime: showTime, showWatts: showWatts)
+        let title = Self.title(for: snapshot, showPercent: showPercent, showTime: showTime, showWatts: showWatts,
+                               precise: precisePercent)
         HStack(spacing: 4) {
             Image(systemName: Self.symbol(for: snapshot))
             if !title.isEmpty {
@@ -36,10 +38,14 @@ struct MenuBarLabel: View {
         }
     }
 
-    /// "67.5% (4h 8m)", "71.3% (+47.2 W)", "80%", "4h 8m", or "" (glyph only).
-    static func title(for snapshot: BatterySnapshot?, showPercent: Bool, showTime: Bool, showWatts: Bool) -> String {
+    /// "67% (4h 8m)", "71% (+47.2 W)", "80%", "4h 8m", or "" (glyph only). `precise` swaps in
+    /// the raw one-decimal value ("79.0%") instead of the percent macOS shows.
+    static func title(for snapshot: BatterySnapshot?, showPercent: Bool, showTime: Bool, showWatts: Bool,
+                      precise: Bool = false) -> String {
         guard let snapshot else { return showPercent ? Fmt.dash : "" }
-        let percent = snapshot.rawChargePercent.map { String(format: "%.1f%%", $0) } ?? "\(snapshot.chargePercent)%"
+        let percent = precise
+            ? (snapshot.rawChargePercent.map { String(format: "%.1f%%", $0) } ?? "\(snapshot.chargePercent)%")
+            : "\(snapshot.chargePercent)%"
 
         var extra: String?
         if showWatts {
@@ -83,6 +89,7 @@ struct PopoverView: View {
         .padding(.bottom, 12)
         .frame(width: Self.width)
         .fixedSize(horizontal: false, vertical: true)
+        .debugWindowDump("popover")
         .onAppear {
             isVisible = true
             model.surfaceAppeared()
@@ -103,6 +110,10 @@ struct PopoverView: View {
             .padding(.bottom, 12)
         PopoverTiles(display: display)
             .padding(.bottom, 12)
+        if let drain = display.drainExplanation {
+            PopoverDrainBanner(text: drain)
+                .padding(.bottom, 12)
+        }
         if !display.profiles.isEmpty {
             PopoverProfileChips(display: display)
                 .padding(.bottom, 14)
@@ -163,7 +174,9 @@ private struct PopoverMenuBarLabelGallery: View {
                     MenuBarLabel()
                         .environment(BatteryModel(previewSnapshot: snapshot, history: []))
                         .font(.system(size: 13))
-                    Text("watts: " + MenuBarLabel.title(for: snapshot, showPercent: true, showTime: true, showWatts: true))
+                    Text("watts: " + MenuBarLabel.title(for: snapshot, showPercent: true, showTime: true, showWatts: true)
+                         + "   precise: " + MenuBarLabel.title(for: snapshot, showPercent: true, showTime: false,
+                                                               showWatts: false, precise: true))
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
@@ -173,3 +186,4 @@ private struct PopoverMenuBarLabelGallery: View {
         .frame(width: 380, alignment: .leading)
     }
 }
+
