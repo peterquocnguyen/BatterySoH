@@ -10,7 +10,7 @@ Manager, no third-party dependencies, no helper tools, no root.
 
 - Answer at a glance: "how much charge, how fast is it moving, where does the power go?"
 - Show long-term battery health (capacity vs design, cycles) with a monthly history.
-- Stay tiny: < 1% CPU when idle, < 40 MB RAM, polling only while something is visible
+- Stay tiny: ~0% CPU when idle, < 100 MB RSS (measured v0.1: 0.0% CPU, 80 MB), polling only while something is visible
   plus one cheap background sample for history.
 
 ## Non-goals (v1)
