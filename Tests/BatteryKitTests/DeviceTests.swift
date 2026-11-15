@@ -237,12 +237,12 @@ struct LastExactReadingTests {
     @Test func storeRoundTripsAndKeepsOnlyExactReadings() throws {
         let tmp = try TempDir()
         let url = tmp.url.appendingPathComponent("BatteryBuddy/last-exact-readings.json")
-        let store = LastExactReadingStore(fileURL: url)
+        let store = LastExactReadingStore(fileURL: url, now: Self.t0)
         #expect(store.devices.isEmpty)
         #expect(try store.remember([Self.wifi, try hotspot(), .sampleIPadUntrusted, .sampleMouse], now: Self.t0))
         #expect(store.devices.map(\.id) == ["udid-1"])
 
-        let reloaded = LastExactReadingStore(fileURL: url)
+        let reloaded = LastExactReadingStore(fileURL: url, now: Self.t0)
         #expect(reloaded.devices == [Self.wifi])
         #expect(reloaded.readings["udid-1"]?.updatedAt == Self.t0)
     }
@@ -250,30 +250,47 @@ struct LastExactReadingTests {
     @Test func storeWritesOnChangeAndBatchesTimeOnlyUpdates() throws {
         let tmp = try TempDir()
         let url = tmp.url.appendingPathComponent("last.json")
-        let store = LastExactReadingStore(fileURL: url)
+        let store = LastExactReadingStore(fileURL: url, now: Self.t0)
         #expect(try store.remember([Self.wifi], now: Self.t0))
         // Same reading a minute later: memory only.
         var later = Self.wifi
         later.updatedAt = Self.t0.addingTimeInterval(60)
         #expect(try !store.remember([later], now: Self.t0.addingTimeInterval(60)))
         #expect(store.readings["udid-1"]?.updatedAt == later.updatedAt)
-        #expect(LastExactReadingStore(fileURL: url).readings["udid-1"]?.updatedAt == Self.t0)
+        #expect(LastExactReadingStore(fileURL: url, now: Self.t0).readings["udid-1"]?.updatedAt == Self.t0)
         // flush (disconnect / quit) writes it.
         try store.flush(now: Self.t0.addingTimeInterval(61))
-        #expect(LastExactReadingStore(fileURL: url).readings["udid-1"]?.updatedAt == later.updatedAt)
+        #expect(LastExactReadingStore(fileURL: url, now: Self.t0).readings["udid-1"]?.updatedAt == later.updatedAt)
         // A new level is written right away.
         var dropped = later
         dropped.percent = 90
         dropped.updatedAt = Self.t0.addingTimeInterval(120)
         #expect(try store.remember([dropped], now: Self.t0.addingTimeInterval(120)))
-        #expect(LastExactReadingStore(fileURL: url).readings["udid-1"]?.percent == 90)
+        #expect(LastExactReadingStore(fileURL: url, now: Self.t0).readings["udid-1"]?.percent == 90)
+    }
+
+    @Test func readingsExpireAfter30Days() throws {
+        let tmp = try TempDir()
+        let url = tmp.url.appendingPathComponent("last.json")
+        let store = LastExactReadingStore(fileURL: url, now: Self.t0)
+        #expect(try store.remember([Self.wifi], now: Self.t0))
+        let day: TimeInterval = 24 * 60 * 60
+        // 29 days later: still shown.
+        #expect(store.devices(now: Self.t0.addingTimeInterval(29 * day)).map(\.id) == ["udid-1"])
+        #expect(LastExactReadingStore(fileURL: url, now: Self.t0.addingTimeInterval(29 * day)).devices(now: Self.t0.addingTimeInterval(29 * day)).count == 1)
+        // 31 days later: hidden, and dropped from disk on load.
+        let later = Self.t0.addingTimeInterval(31 * day)
+        #expect(store.devices(now: later).isEmpty)
+        let reloaded = LastExactReadingStore(fileURL: url, now: later)
+        #expect(reloaded.readings.isEmpty)
+        #expect(LastExactReadingStore(fileURL: url, now: Self.t0).readings.isEmpty)
     }
 
     @Test func unreadableFileStartsEmpty() throws {
         let tmp = try TempDir()
         let url = tmp.url.appendingPathComponent("last.json")
         try Data("not json".utf8).write(to: url)
-        #expect(LastExactReadingStore(fileURL: url).devices.isEmpty)
+        #expect(LastExactReadingStore(fileURL: url, now: Self.t0).devices.isEmpty)
     }
 
     @Test func mobileReadCarriesItsTime() {

@@ -307,6 +307,14 @@ public final class LastExactReadingStore {
     private var dirty = false
 
     public static let writeInterval: TimeInterval = 5 * 60
+    /// A device not read for this long (sold, replaced, Wi-Fi sync off) is forgotten.
+    public static let maxAge: TimeInterval = 30 * 24 * 60 * 60
+
+    /// True when `reading` is older than `maxAge`. Readings without a time are kept.
+    public static func isExpired(_ reading: DeviceBattery, now: Date = Date()) -> Bool {
+        guard let updated = reading.updatedAt else { return false }
+        return now.timeIntervalSince(updated) > maxAge
+    }
 
     public static var defaultURL: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -314,14 +322,16 @@ public final class LastExactReadingStore {
             .appendingPathComponent("last-exact-readings.json")
     }
 
-    public init(fileURL: URL = LastExactReadingStore.defaultURL) {
+    public init(fileURL: URL = LastExactReadingStore.defaultURL, now: Date = Date()) {
         self.fileURL = fileURL
-        load()
+        load(now: now)
     }
 
-    /// Remembered readings, by name.
-    public var devices: [DeviceBattery] {
-        readings.values.sorted { a, b in
+    /// Remembered readings younger than `maxAge`, by name.
+    public var devices: [DeviceBattery] { devices(now: Date()) }
+
+    public func devices(now: Date) -> [DeviceBattery] {
+        readings.values.filter { !Self.isExpired($0, now: now) }.sorted { a, b in
             a.name.localizedStandardCompare(b.name) == .orderedAscending || (a.name == b.name && a.id < b.id)
         }
     }
@@ -331,11 +341,15 @@ public final class LastExactReadingStore {
         var devices: [DeviceBattery]
     }
 
-    public func load() {
+    public func load(now: Date = Date()) {
         readings = [:]
         guard let data = try? Data(contentsOf: fileURL),
               let file = try? Self.decoder.decode(File.self, from: data) else { return }
-        for d in file.devices where d.isExactReading { readings[d.id] = d }
+        for d in file.devices where d.isExactReading {
+            if Self.isExpired(d, now: now) { dirty = true } else { readings[d.id] = d }
+        }
+        // Drop expired devices from disk right away.
+        if dirty { try? write(now: now) }
     }
 
     /// Keeps every exact reading in `devices` (others are ignored). Returns true when the
@@ -363,7 +377,8 @@ public final class LastExactReadingStore {
 
     private func write(now: Date) throws {
         try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Self.encoder.encode(File(devices: devices)).write(to: fileURL, options: .atomic)
+        readings = readings.filter { !Self.isExpired($0.value, now: now) }
+        try Self.encoder.encode(File(devices: devices(now: now))).write(to: fileURL, options: .atomic)
         lastWrite = now
         dirty = false
     }
