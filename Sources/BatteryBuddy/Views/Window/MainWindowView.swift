@@ -1,20 +1,209 @@
+import AppKit
 import BatteryKit
+import Combine
 import SwiftUI
+import UniformTypeIdentifiers
 
-// PLACEHOLDER — owned by the window work (SPEC F4–F6).
-
+/// F4/F5 — the main window: a tab switcher over "This Mac" and "History".
+/// Tab contents are custom-drawn views; only this outer layer adds the ScrollView.
 struct MainWindowView: View {
-    var body: some View { Text("Battery Buddy").padding() }
+    @Environment(BatteryModel.self) private var model
+    @AppStorage(SettingsKey.temperatureUnit) private var temperatureUnit: Fmt.TemperatureUnit = .celsius
+    @AppStorage(WindowStorageKey.selectedTab) private var tab: WindowTab = .thisMac
+    @AppStorage(WindowStorageKey.detailsExpanded) private var detailsExpanded = false
+    @State private var lowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
+    @State private var exportMessage: String?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            WindowTabBar(selection: $tab)
+            WindowHairline()
+            ScrollView {
+                switch tab {
+                case .thisMac:
+                    WindowThisMacContent(mac: model.mac, snapshot: model.snapshot,
+                                         temperatureUnit: temperatureUnit, lowPowerMode: lowPowerMode,
+                                         detailsExpanded: $detailsExpanded)
+                case .history:
+                    HistoryContent(history: model.history, deviceTitle: "This Mac (\(model.mac.name))",
+                                   onExport: model.history.isEmpty ? nil : exportCSV,
+                                   exportMessage: exportMessage)
+                }
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
+        .frame(width: WindowLayout.width)
+        .frame(minHeight: 480, idealHeight: WindowLayout.height, maxHeight: 900)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear { model.surfaceAppeared() }
+        .onDisappear { model.surfaceDisappeared() }
+        .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)
+            .receive(on: RunLoop.main)) { _ in
+            lowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
+        }
+    }
+
+    private func exportCSV() {
+        let panel = NSSavePanel()
+        panel.title = "Export Battery History"
+        panel.nameFieldStringValue = "Battery Buddy History.csv"
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.canCreateDirectories = true
+        let csv = model.exportCSV()
+        let write: (NSApplication.ModalResponse) -> Void = { response in
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                try csv.write(to: url, atomically: true, encoding: .utf8)
+                exportMessage = "Saved \(url.lastPathComponent)"
+            } catch {
+                exportMessage = "Export failed: \(error.localizedDescription)"
+            }
+        }
+        if let window = NSApp.keyWindow {
+            panel.beginSheetModal(for: window, completionHandler: write)
+        } else {
+            write(panel.runModal())
+        }
+    }
 }
 
-struct SettingsView: View {
-    var body: some View { Text("Settings").padding() }
+enum WindowLayout {
+    static let width: CGFloat = 420
+    static let height: CGFloat = 640
 }
+
+private enum WindowStorageKey {
+    static let selectedTab = "window.selectedTab"
+    static let detailsExpanded = "window.thisMac.detailsExpanded"
+}
+
+enum WindowTab: String, CaseIterable, Identifiable {
+    case thisMac, history
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .thisMac: return "This Mac"
+        case .history: return "History"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .thisMac: return "laptopcomputer"
+        case .history: return "chart.xyaxis.line"
+        }
+    }
+}
+
+/// Toolbar-style icon + label tab switcher (custom-drawn so it renders headlessly).
+struct WindowTabBar: View {
+    @Binding var selection: WindowTab
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(WindowTab.allCases) { tab in
+                WindowTabButton(tab: tab, isSelected: tab == selection) { selection = tab }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+}
+
+private struct WindowTabButton: View {
+    let tab: WindowTab
+    let isSelected: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 3) {
+                Image(systemName: tab.symbol)
+                    .font(.system(size: 18, weight: .regular))
+                    .frame(height: 22)
+                Text(tab.title)
+                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+            }
+            .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+            .frame(width: 84, height: 50)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.primary.opacity(isSelected ? 0.07 : (hovering ? 0.04 : 0)))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .accessibilityLabel(tab.title)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+// MARK: - Render entries
 
 enum WindowRenderEntries {
     @MainActor
     static func all() -> [RenderEntry] {
-        let model = BatteryModel(previewSnapshot: .sampleCharging, history: HistorySample.sampleSeries())
-        return [RenderEntry("window") { MainWindowView().environment(model) }]
+        let mac = MacInfo(name: "MacBook Pro", detail: "14-inch, Nov 2024", chip: "Apple M4 Pro", identifier: "Mac16,8")
+        var onBattery = BatterySnapshot.sampleOnBattery
+        onBattery.manufactureDate = Calendar(identifier: .gregorian)
+            .date(from: DateComponents(year: 2024, month: 10, day: 17))
+        let end = Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 11, day: 15)) ?? Date()
+
+        return [
+            RenderEntry("window-thismac-charging") {
+                frame(.thisMac) {
+                    WindowThisMacContent(mac: mac, snapshot: .sampleCharging, temperatureUnit: .celsius,
+                                         lowPowerMode: false, detailsExpanded: .constant(true))
+                }
+            },
+            RenderEntry("window-thismac-onbattery") {
+                frame(.thisMac) {
+                    WindowThisMacContent(mac: mac, snapshot: onBattery, temperatureUnit: .fahrenheit,
+                                         lowPowerMode: true, detailsExpanded: .constant(false))
+                }
+            },
+            RenderEntry("window-thismac-nobattery") {
+                frame(.thisMac) {
+                    WindowThisMacContent(mac: MacInfo(name: "Mac mini", detail: "2024", chip: "Apple M4",
+                                                      identifier: "Mac16,10"),
+                                         snapshot: nil, temperatureUnit: .celsius,
+                                         lowPowerMode: false, detailsExpanded: .constant(false))
+                }
+            },
+            RenderEntry("window-history") {
+                frame(.history) {
+                    HistoryContent(history: HistorySample.sampleSeries(endingAt: end),
+                                   deviceTitle: "This Mac (MacBook Pro)", onExport: {})
+                }
+            },
+            RenderEntry("window-history-empty") {
+                frame(.history) {
+                    HistoryContent(history: [], deviceTitle: "This Mac (MacBook Pro)")
+                }
+            },
+            RenderEntry("settings") {
+                SettingsView()
+                    .environment(BatteryModel(previewSnapshot: .sampleCharging, history: []))
+                    .background(Color(nsColor: .windowBackgroundColor))
+            },
+        ]
+    }
+
+    /// Tab bar + content at window width, without the ScrollView (which can't render headlessly).
+    @MainActor
+    private static func frame<Content: View>(_ tab: WindowTab, @ViewBuilder _ content: () -> Content) -> some View {
+        VStack(spacing: 0) {
+            WindowTabBar(selection: .constant(tab))
+            WindowHairline()
+            content()
+            Spacer(minLength: 0)
+        }
+        .frame(width: WindowLayout.width)
+        // Inside the entry so it resolves with the entry's colour scheme.
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }
