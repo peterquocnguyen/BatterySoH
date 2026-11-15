@@ -66,7 +66,7 @@ public enum PowerState: String, Codable, Sendable {
     case drainingOnAC
 }
 
-/// Everything Battery Buddy knows about the battery at one moment.
+/// Everything BatterySoH knows about the battery at one moment.
 /// Every hardware value that might be missing is optional; UIs render `nil` as "—".
 public struct BatterySnapshot: Codable, Equatable, Sendable {
     public var timestamp: Date

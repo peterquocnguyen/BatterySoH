@@ -1,18 +1,18 @@
 import BatteryKit
 import Foundation
 
-// bbstat — print the current battery snapshot.
-//   bbstat          human-readable
-//   bbstat --json   JSON snapshot
-//   bbstat --raw    raw AppleSmartBattery registry as XML plist (fixture capture)
-//   bbstat --devices          other devices: accessories + iPhone/iPad (add --json for JSON);
+// sohstat — print the current battery snapshot.
+//   sohstat          human-readable
+//   sohstat --json   JSON snapshot
+//   sohstat --raw    raw AppleSmartBattery registry as XML plist (fixture capture)
+//   sohstat --devices          other devices: accessories + iPhone/iPad (add --json for JSON);
 //                             a disconnected iPhone/iPad shows the app's last exact reading
-//   bbstat --devices --raw    raw accessory power source descriptions as XML plist
+//   sohstat --devices --raw    raw accessory power source descriptions as XML plist
 
 let args = Set(CommandLine.arguments.dropFirst())
 
 if args.contains("--help") || args.contains("-h") {
-    print("usage: bbstat [--json | --raw | --smc | --devices [--json | --raw] [--wait seconds]]")
+    print("usage: sohstat [--json | --raw | --smc | --devices [--json | --raw] [--wait seconds]]")
     exit(0)
 }
 

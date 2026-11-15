@@ -295,7 +295,7 @@ public enum MobileBatteryParser {
 /// The last exact (USB / Wi-Fi sync) reading of each iPhone / iPad, so a device that
 /// disconnects (phone asleep, off the network) keeps showing its real level — faded, "not
 /// connected" — instead of the far older Instant Hotspot value. One small JSON file,
-/// `~/Library/Application Support/BatteryBuddy/last-exact-readings.json`, written atomically.
+/// `~/Library/Application Support/BatterySoH/last-exact-readings.json`, written atomically.
 ///
 /// Cheap by design: a read only writes the file when something other than the time changed,
 /// or `writeInterval` has passed; `flush()` writes the rest (on disconnect and on quit).
@@ -318,7 +318,7 @@ public final class LastExactReadingStore {
 
     public static var defaultURL: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return base.appendingPathComponent("BatteryBuddy", isDirectory: true)
+        return base.appendingPathComponent("BatterySoH", isDirectory: true)
             .appendingPathComponent("last-exact-readings.json")
     }
 

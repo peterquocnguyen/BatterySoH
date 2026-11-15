@@ -3,7 +3,7 @@ import ObjectiveC
 
 // SPEC F8 — Charge limit status and "Charge to Full Now".
 //
-// PRIVATE API: this file is the only place Battery Buddy touches PowerUI.framework
+// PRIVATE API: this file is the only place BatterySoH touches PowerUI.framework
 // (`PowerUISmartChargeClient`, the client behind the native Battery menu's charge-limit items).
 // Everything is looked up at runtime and every call checks that the class, the selector and its
 // exact ObjC type encoding are present before calling, so a macOS change makes these features
@@ -12,7 +12,7 @@ import ObjectiveC
 // Allowed calls, by design: reads (`isMCLCurrentlyEnabled:`, `getMCLLimitWithError:`,
 // `isOBCEngaged:isMaxChargeLimited:chargingOverrideAllowed:withError:`) and the native
 // menu's one-shot override `temporarilyDisableMCL:`. Never `setMCLLimit:error:`,
-// `enableMCL:` or `disableMCL:` — Battery Buddy does not change the user's limit setting.
+// `enableMCL:` or `disableMCL:` — BatterySoH does not change the user's limit setting.
 
 /// Manual Charge Limit (MCL) state as macOS reports it.
 public struct ChargeLimitStatus: Equatable, Codable, Sendable {
@@ -52,7 +52,7 @@ public final class ChargeLimit: @unchecked Sendable {
 
     static let frameworkPath = "/System/Library/PrivateFrameworks/PowerUI.framework/PowerUI"
     static let className = "PowerUISmartChargeClient"
-    static let clientName = "com.batterybuddy.app"
+    static let clientName = "com.batterysoh.app"
 
     /// Selector → exact type encoding we cast the IMP to.
     enum Signature {

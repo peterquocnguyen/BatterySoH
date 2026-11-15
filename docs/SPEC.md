@@ -1,4 +1,4 @@
-# Battery Buddy — Product Spec
+# BatterySoH — Product Spec
 
 A lightweight, native macOS menu bar app that shows what the battery and the charger in
 **this Mac** are doing right now, how the battery ages over time, and the batteries of the
@@ -114,7 +114,7 @@ Device first: every device appears once. A `NavigationSplitView` with
 ### F5 — Window: History (This Mac page, below F4)
 - The app records one sample per day (first launch, then on wake/timer):
   date, health %, cycles, full-charge mAh, design mAh.
-- Stored as JSON at `~/Library/Application Support/BatteryBuddy/history.json`.
+- Stored as JSON at `~/Library/Application Support/BatterySoH/history.json`.
 - "History" section on the This Mac page, under Details: Battery Health card (sample count,
   since, current health; Swift Charts line of health % over time), then a table grouped by month
   (`2025-11`): average health, max cycles. Export CSV button next to the section title. Empty
@@ -145,7 +145,7 @@ Device first: every device appears once. A `NavigationSplitView` with
 ### F9 — About
 Settings › About tab: app icon, name, version (build), author **Peter Quoc**, copyright,
 one-line description, privacy statement (no network, no data collection), credits for
-data sources, "Copy Diagnostics" (bbstat-style text for bug reports).
+data sources, "Copy Diagnostics" (sohstat-style text for bug reports).
 
 ### F10 — Window: other devices (one sidebar row and page each)
 Batteries of other devices this Mac can see.
@@ -166,7 +166,7 @@ Batteries of other devices this Mac can see.
 - **Not connected** (last exact reading): when a cabled / Wi-Fi-synced device disconnects
   (phone asleep, off the network), its last exact reading stays (`DeviceBattery.isLastKnown`,
   `LastExactReadingStore`: one JSON file
-  `~/Library/Application Support/BatteryBuddy/last-exact-readings.json`, written atomically when
+  `~/Library/Application Support/BatterySoH/last-exact-readings.json`, written atomically when
   the reading changes, at most every 5 min otherwise, on disconnect and on quit; survives
   relaunch). The page is faded (0.55 opacity on its values), grey bar, no charging bolt, no
   connection in the subtitle, caption "Last updated 12:40 · not connected" (relative when
@@ -183,7 +183,7 @@ Batteries of other devices this Mac can see.
 - **Setup card** on every nearby-only iPhone / iPad page, at full strength as the page's primary
   element (accent-tinted, filled button): "For the live level, charging state, health
   and cycles: connect the iPhone by cable once, unlock it and tap Trust, then in Finder select
-  it and turn on ‘Show this iPhone when on Wi-Fi’. After that Battery Buddy reads it wirelessly
+  it and turn on ‘Show this iPhone when on Wi-Fi’. After that BatterySoH reads it wirelessly
   whenever both are on the same Wi-Fi." plus an **Open Finder** button.
 - Precedence (`HotspotParser.merge(connected:remembered:nearby:knownNames:)`): exact connected
   read > last exact reading of a disconnected device > hotspot level. A nearby entry is dropped
@@ -200,12 +200,12 @@ Batteries of other devices this Mac can see.
 
 **Accept:** a connected Bluetooth mouse shows the same percent as `pmset -g accps`; an
 iPhone on the same Apple Account shows the percent the Wi-Fi menu shows for its hotspot,
-marked approximate (`bbstat --devices`: `≈75% (hotspot, may lag)`). `bbstat --devices` adds
+marked approximate (`sohstat --devices`: `≈75% (hotspot, may lag)`). `sohstat --devices` adds
 `· updated just now` to exact iPhone / iPad lines and `· not connected (last exact reading)` to a
 remembered one (it reads the app's last-exact file, never writes it).
 
-### F7 — `bbstat` CLI (dev + power-user tool)
-`swift run bbstat` prints the current snapshot as human text; `--json` prints JSON.
+### F7 — `sohstat` CLI (dev + power-user tool)
+`swift run sohstat` prints the current snapshot as human text; `--json` prints JSON.
 `--devices` lists other devices (F10), `--devices --json` as JSON, `--devices --raw` dumps
 the accessory power source dictionaries (fixture capture).
 Used for debugging and as a fixture capture tool (`--raw` dumps the registry plist).
@@ -215,10 +215,10 @@ Used for debugging and as a fixture capture tool (`--raw` dumps the registry pli
 ```
 Sources/
   BatteryKit/     pure-Swift library: models, IOKit/SMC readers, parser, history, formatting
-  BatteryBuddy/   SwiftUI app: MenuBarExtra(.window) + Window + Settings
-  bbstat/         CLI over BatteryKit
+  BatterySoH/   SwiftUI app: MenuBarExtra(.window) + Window + Settings
+  sohstat/         CLI over BatteryKit
 Tests/BatteryKitTests/  Swift Testing; fixtures are real registry dumps (serial scrubbed)
-scripts/bundle.sh       builds release + wraps into build/Battery Buddy.app (ad-hoc signed)
+scripts/bundle.sh       builds release + wraps into build/BatterySoH.app (ad-hoc signed)
 ```
 
 Rules:
@@ -229,7 +229,7 @@ Rules:
   a 5-minute timer (menu bar title, one history sample per day).
 
 ## Milestones
-1. M1 Core: BatteryKit models/parser/readers + bbstat + tests.
+1. M1 Core: BatteryKit models/parser/readers + sohstat + tests.
 2. M2 Popover: F1, F2, F3.
 3. M3 Window: F4, F5, F6 (device-first split view since 0.1.x; F10 pages in the same window).
 4. M4 Ship: bundle script, app icon, README, launch-at-login, v0.1.0 tag.

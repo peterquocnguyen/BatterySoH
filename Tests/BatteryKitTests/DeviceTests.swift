@@ -236,7 +236,7 @@ struct LastExactReadingTests {
 
     @Test func storeRoundTripsAndKeepsOnlyExactReadings() throws {
         let tmp = try TempDir()
-        let url = tmp.url.appendingPathComponent("BatteryBuddy/last-exact-readings.json")
+        let url = tmp.url.appendingPathComponent("BatterySoH/last-exact-readings.json")
         let store = LastExactReadingStore(fileURL: url, now: Self.t0)
         #expect(store.devices.isEmpty)
         #expect(try store.remember([Self.wifi, try hotspot(), .sampleIPadUntrusted, .sampleMouse], now: Self.t0))

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Build a release BatteryBuddy and wrap it into "build/Battery Buddy.app" (ad-hoc signed).
+# Build a release BatterySoH and wrap it into "build/BatterySoH.app" (ad-hoc signed).
 #
-#   scripts/bundle.sh          # build/Battery Buddy.app
-#   scripts/bundle.sh --zip    # also build/BatteryBuddy-<version>.zip
+#   scripts/bundle.sh          # build/BatterySoH.app
+#   scripts/bundle.sh --zip    # also build/BatterySoH-<version>.zip
 #
 # Safe to re-run: the .app is rebuilt from scratch each time.
 # Needs Xcode (not just Command Line Tools): the app uses SwiftUI macros (@State) whose
@@ -23,7 +23,7 @@ done
 
 info_plist="$root/Resources/Info.plist"
 icon="$root/Resources/AppIcon.icns"
-app="$root/build/Battery Buddy.app"
+app="$root/build/BatterySoH.app"
 
 plutil -lint -s "$info_plist"
 version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$info_plist")"
@@ -35,10 +35,10 @@ if [[ "$dev_dir" == *CommandLineTools* ]]; then
     echo "         Install Xcode, then: sudo xcode-select -s /Applications/Xcode.app" >&2
 fi
 
-echo "==> swift build -c release --product BatteryBuddy"
-swift build -c release --product BatteryBuddy
+echo "==> swift build -c release --product BatterySoH"
+swift build -c release --product BatterySoH
 bin_dir="$(swift build -c release --show-bin-path)"
-binary="$bin_dir/BatteryBuddy"
+binary="$bin_dir/BatterySoH"
 [[ -x "$binary" ]] || { echo "error: no binary at $binary" >&2; exit 1; }
 
 echo "==> assembling $app"
@@ -75,7 +75,7 @@ codesign --force --sign - --options runtime --timestamp=none "$app"
 codesign --verify --strict "$app"
 
 if $make_zip; then
-    zip="$root/build/BatteryBuddy-$version.zip"
+    zip="$root/build/BatterySoH-$version.zip"
     rm -f "$zip"
     # --norsrc/--noextattr: keep local xattrs (com.apple.provenance…) out as ._ files.
     ditto -c -k --keepParent --norsrc --noextattr "$app" "$zip"

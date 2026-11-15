@@ -76,7 +76,7 @@ public final class HistoryStore {
 
     public static var defaultURL: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return base.appendingPathComponent("BatteryBuddy", isDirectory: true).appendingPathComponent("history.json")
+        return base.appendingPathComponent("BatterySoH", isDirectory: true).appendingPathComponent("history.json")
     }
 
     public init(fileURL: URL = HistoryStore.defaultURL, calendar: Calendar = .current) {

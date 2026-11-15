@@ -2,11 +2,13 @@ import BatteryKit
 import SwiftUI
 
 @main
-struct BatteryBuddyApp: App {
+struct BatterySoHApp: App {
     @State private var model: BatteryModel
 
     init() {
         RenderHarness.runIfRequested()
+        // Before BatteryModel loads history / remembered readings from Application Support.
+        LegacyMigration.run()
         _model = State(initialValue: BatteryModel())
     }
 
@@ -20,7 +22,7 @@ struct BatteryBuddyApp: App {
         }
         .menuBarExtraStyle(.window)
 
-        Window("Battery Buddy", id: WindowID.main) {
+        Window("BatterySoH", id: WindowID.main) {
             MainWindowView()
                 .environment(model)
         }

@@ -1,9 +1,9 @@
-# Battery Buddy
+# BatterySoH
 
 A small, native macOS menu bar app that shows what the battery and charger in your Mac are
-doing right now, and how the battery ages over time. SwiftUI, no dependencies, read-only.
+doing right now, and how the battery ages over time. SwiftUI, no dependencies.
 
-Version 0.1.1 (build 2) · by Peter Quoc
+Version 0.2.0 (build 3) · by Peter Quoc · formerly Battery Buddy
 
 ## Features
 
@@ -30,7 +30,7 @@ Version 0.1.1 (build 2) · by Peter Quoc
 - **Settings › About**: version, author, privacy note, data-source credits, and **Copy Diagnostics**,
   which puts a plain-text report (app and macOS version, Mac model, current battery and
   charger readings) on the clipboard for bug reports.
-- **`bbstat` CLI**: the same data in the terminal, as text or JSON (`--devices` for other
+- **`sohstat` CLI**: the same data in the terminal, as text or JSON (`--devices` for other
   devices).
 
 ## Screenshots
@@ -43,17 +43,17 @@ _Coming soon._ <!-- popover (charging), popover (on battery), window: This Mac p
   Intel is best effort.
 - To build the app: **Xcode** (Swift 6). The app uses SwiftUI macros such as `@State`, and
   their compiler plugin ships only with Xcode, not with the Command Line Tools.
-- To build and test `BatteryKit` and `bbstat`, the Command Line Tools are enough
+- To build and test `BatteryKit` and `sohstat`, the Command Line Tools are enough
   (see [Testing](#testing)).
 
 ## Build and run
 
 ```sh
 swift build                      # debug build of everything
-swift run bbstat                 # print the current battery snapshot
-swift run bbstat --json          # same, as JSON
-swift run bbstat --raw           # raw AppleSmartBattery registry as an XML plist
-swift run BatteryBuddy           # run the menu bar app from the build folder
+swift run sohstat                 # print the current battery snapshot
+swift run sohstat --json          # same, as JSON
+swift run sohstat --raw           # raw AppleSmartBattery registry as an XML plist
+swift run BatterySoH           # run the menu bar app from the build folder
 ```
 
 ## Testing
@@ -76,13 +76,13 @@ SwiftUI macro plugin. `scripts/test.sh` handles both by building only the test t
 ## Bundle the app
 
 ```sh
-scripts/bundle.sh                # build/Battery Buddy.app (release, ad-hoc signed)
-scripts/bundle.sh --zip          # also build/BatteryBuddy-<version>.zip
+scripts/bundle.sh                # build/BatterySoH.app (release, ad-hoc signed)
+scripts/bundle.sh --zip          # also build/BatterySoH-<version>.zip
 ```
 
 The bundle is ad-hoc signed, not notarized. Gatekeeper will block it on other Macs the
 first time. Right-click the app and choose **Open**, or run
-`xattr -dr com.apple.quarantine "Battery Buddy.app"`.
+`xattr -dr com.apple.quarantine "BatterySoH.app"`.
 
 The app icon is generated in code. To redraw it:
 
@@ -92,7 +92,7 @@ swift scripts/make-icon.swift build/AppIcon.iconset   # writes Resources/AppIcon
 
 Version, build number, copyright and bundle id live in `Resources/Info.plist`. Settings › About
 reads them from the bundle; unbundled runs (`swift run`, `--render`) fall back to constants in
-`AboutInfo` (`Sources/BatteryBuddy/Views/Window/AboutView.swift`), so bump both together.
+`AboutInfo` (`Sources/BatterySoH/Views/Window/AboutView.swift`), so bump both together.
 
 ## Where the data comes from
 
@@ -110,17 +110,17 @@ Values the hardware doesn't report are shown as "—", never as 0.
 
 ## Privacy
 
-Battery Buddy only reads. It never writes SMC keys or changes how the Mac charges, needs no
+BatterySoH only reads. It never writes SMC keys or changes how the Mac charges, needs no
 root or helper tool, and makes no network connections. Apart from its settings (in
 `UserDefaults`), it writes its daily history at
-`~/Library/Application Support/BatteryBuddy/history.json` and the last exact reading of each
+`~/Library/Application Support/BatterySoH/history.json` and the last exact reading of each
 iPhone / iPad at `last-exact-readings.json` next to it. (Builds with the old Insights tab also
 wrote a `charge-log/` folder there; current builds neither read nor write it, and it can be
 deleted.)
 
 ## About
 
-Battery Buddy is written by Peter Quoc. © 2026 Peter Quoc.
+BatterySoH is written by Peter Quoc. © 2026 Peter Quoc.
 
 The diagnostics report leaves out the battery serial number. Website, support and license
 links are not set yet.
@@ -129,8 +129,8 @@ links are not set yet.
 
 ```
 Sources/BatteryKit/     models, parser, IOKit/SMC readers, history, formatting
-Sources/BatteryBuddy/   SwiftUI app (menu bar popover, window, settings)
-Sources/bbstat/         CLI
+Sources/BatterySoH/   SwiftUI app (menu bar popover, window, settings)
+Sources/sohstat/         CLI
 Tests/BatteryKitTests/  Swift Testing suite and registry fixtures
 scripts/                bundle.sh, test.sh, make-icon.swift
 docs/SPEC.md            product spec

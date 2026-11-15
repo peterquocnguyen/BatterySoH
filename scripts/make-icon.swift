@@ -1,5 +1,5 @@
 #!/usr/bin/env swift
-// Draws the Battery Buddy app icon and packs it into Resources/AppIcon.icns.
+// Draws the BatterySoH app icon and packs it into Resources/AppIcon.icns.
 //
 //   swift scripts/make-icon.swift <out.iconset> [out.icns]
 //

@@ -169,16 +169,16 @@ private struct AboutPrivacyCard: View {
 /// Everything About shows that depends on the bundle or the machine. Render entries
 /// build it with fixed values; Settings uses `current(mac:)`.
 struct AboutInfo {
-    static let appName = "Battery Buddy"
+    static let appName = "BatterySoH"
     static let author = "Peter Quoc"
     static let tagline = "A lightweight battery and charger monitor for your Mac."
-    static let privacy = "Battery Buddy works offline. It reads battery data from macOS and never sends anything anywhere."
+    static let privacy = "BatterySoH works offline. It reads battery data from macOS and never sends anything anywhere."
     static let credits = "Data from IOKit (AppleSmartBattery), IOPowerSources and the SMC."
 
     // Fallbacks for unbundled runs (`swift run`, `--render`), where Bundle.main has no
     // Info.plist. Keep in sync with Resources/Info.plist.
-    static let fallbackVersion = "0.1.1"
-    static let fallbackBuild = "2"
+    static let fallbackVersion = "0.2.0"
+    static let fallbackBuild = "3"
     static let fallbackCopyright = "© 2026 Peter Quoc"
 
     // TODO(About links): website URL — not chosen yet. Add a link row to AboutContent once set.
@@ -196,7 +196,7 @@ struct AboutInfo {
     var mac: MacInfo
     var icon: NSImage?
 
-    /// "Version 0.1.1 (2)"
+    /// "Version 0.2.0 (3)"
     var versionLine: String { "Version \(version) (\(build))" }
 
     /// "macOS 27.2 · Mac16,8"

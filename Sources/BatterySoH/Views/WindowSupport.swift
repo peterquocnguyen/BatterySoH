@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 // Window plumbing shared by the popover panel and the main window: a tiny NSWindow
-// accessor and opt-in hierarchy logging (`BB_DEBUG_WINDOWS=1`).
+// accessor and opt-in hierarchy logging (`SOH_DEBUG_WINDOWS=1`).
 
 /// Calls `onWindow` once the hosting view is in a window (and again if it moves windows).
 struct WindowAccessor: NSViewRepresentable {
@@ -35,9 +35,9 @@ struct WindowAccessor: NSViewRepresentable {
     }
 }
 
-/// `BB_DEBUG_WINDOWS=1 …/BatteryBuddy` prints each window's view hierarchy to stderr once.
+/// `SOH_DEBUG_WINDOWS=1 …/BatterySoH` prints each window's view hierarchy to stderr once.
 enum DebugWindows {
-    static let enabled = ProcessInfo.processInfo.environment["BB_DEBUG_WINDOWS"] != nil
+    static let enabled = ProcessInfo.processInfo.environment["SOH_DEBUG_WINDOWS"] != nil
 
     @MainActor private static var logged = Set<String>()
 
@@ -105,7 +105,7 @@ enum DebugWindows {
 }
 
 extension View {
-    /// With `BB_DEBUG_WINDOWS` set, logs the hosting window's view hierarchy once.
+    /// With `SOH_DEBUG_WINDOWS` set, logs the hosting window's view hierarchy once.
     /// Adds nothing otherwise (ImageRenderer would draw an AppKit view as a placeholder).
     @ViewBuilder
     func debugWindowDump(_ label: String) -> some View {

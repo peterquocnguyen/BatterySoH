@@ -208,7 +208,7 @@ struct WindowWiFiSyncSetup: View {
             Label("Get the live level", systemImage: "cable.connector")
                 .font(.headline)
                 .foregroundStyle(.tint)
-            Text("For the live level, charging state, health and cycles: connect the \(device) by cable once, unlock it and tap Trust, then in Finder select it and turn on “Show this \(device) when on Wi-Fi”. After that Battery Buddy reads it wirelessly whenever both are on the same Wi-Fi.")
+            Text("For the live level, charging state, health and cycles: connect the \(device) by cable once, unlock it and tap Trust, then in Finder select it and turn on “Show this \(device) when on Wi-Fi”. After that BatterySoH reads it wirelessly whenever both are on the same Wi-Fi.")
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
             Button("Open Finder", action: onOpenFinder)

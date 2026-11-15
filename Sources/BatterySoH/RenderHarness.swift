@@ -2,7 +2,7 @@ import AppKit
 import BatteryKit
 import SwiftUI
 
-/// Headless visual check: `BatteryBuddy --render <dir>` renders every `RenderEntry`
+/// Headless visual check: `BatterySoH --render <dir>` renders every `RenderEntry`
 /// in light and dark appearance to PNGs (2x) and exits. No menu bar item, no window.
 ///
 /// ImageRenderer cannot draw AppKit-backed controls (Table, List, ScrollView, Toggle,

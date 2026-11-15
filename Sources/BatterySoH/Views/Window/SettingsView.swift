@@ -90,7 +90,7 @@ struct SettingsGeneralView: View {
                 Toggle("Launch at login", isOn: launchBinding)
                 if launchStatus == .requiresApproval {
                     HStack {
-                        Text("Allow Battery Buddy in System Settings › Login Items.")
+                        Text("Allow BatterySoH in System Settings › Login Items.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Spacer()

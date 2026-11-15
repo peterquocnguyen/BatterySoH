@@ -166,7 +166,7 @@ struct HistoryEmptyState: View {
                     .foregroundStyle(.tint)
                 Text("No history yet")
                     .font(.headline)
-                Text("History starts today — Battery Buddy records one sample per day.")
+                Text("History starts today — BatterySoH records one sample per day.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

@@ -22,7 +22,7 @@ public final class MobileDeviceMonitor: @unchecked Sendable {
     private var attached: [String: [Attachment]] = [:]
     private var results: [String: DeviceBattery] = [:]
     private var inFlight: Set<String> = []
-    private let queue = DispatchQueue(label: "BatteryBuddy.MobileDevice", qos: .utility)
+    private let queue = DispatchQueue(label: "BatterySoH.MobileDevice", qos: .utility)
 
     private struct Attachment {
         let device: UnsafeMutableRawPointer // retained AMDeviceRef
@@ -179,7 +179,7 @@ public final class MobileDeviceMonitor: @unchecked Sendable {
             _ = api.invalidate(service)
             Unmanaged<AnyObject>.fromOpaque(service).release()
         }
-        if ProcessInfo.processInfo.environment["BB_DEBUG_MOBILE"] != nil {
+        if ProcessInfo.processInfo.environment["SOH_DEBUG_MOBILE"] != nil {
             // Field names for fixture capture / debugging; values only for scalars.
             for (k, v) in (registry ?? [:]).sorted(by: { $0.key < $1.key }) {
                 let shown = (v is NSNumber || v is String) ? "\(v)" : "<\(type(of: v))>"

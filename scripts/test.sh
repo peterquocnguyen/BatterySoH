@@ -10,7 +10,7 @@
 #      `@Test` / `#expect` fail with "plugin for module 'TestingMacros' not found". We add
 #      `-plugin-path <CLT>/usr/lib/swift/host/plugins/testing`.
 #   2. CLT ships no SwiftUIMacros plugin, and the macOS 27 SDK declares `@State` as a macro,
-#      so the BatteryBuddy app target cannot compile. We build only the BatteryKitTests
+#      so the BatterySoH app target cannot compile. We build only the BatteryKitTests
 #      target and run with --skip-build.
 set -euo pipefail
 cd "$(dirname "$0")/.."

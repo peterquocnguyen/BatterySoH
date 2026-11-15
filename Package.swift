@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "BatteryBuddy",
+    name: "BatterySoH",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "BatteryBuddy", targets: ["BatteryBuddy"]),
-        .executable(name: "bbstat", targets: ["bbstat"]),
+        .executable(name: "BatterySoH", targets: ["BatterySoH"]),
+        .executable(name: "sohstat", targets: ["sohstat"]),
         .library(name: "BatteryKit", targets: ["BatteryKit"]),
     ],
     targets: [
@@ -15,11 +15,11 @@ let package = Package(
             linkerSettings: [.linkedFramework("IOKit")]
         ),
         .executableTarget(
-            name: "BatteryBuddy",
+            name: "BatterySoH",
             dependencies: ["BatteryKit"]
         ),
         .executableTarget(
-            name: "bbstat",
+            name: "sohstat",
             dependencies: ["BatteryKit"]
         ),
         .testTarget(

@@ -69,7 +69,7 @@ struct MainWindowView: View {
     private func exportCSV() {
         let panel = NSSavePanel()
         panel.title = "Export Battery History"
-        panel.nameFieldStringValue = "Battery Buddy History.csv"
+        panel.nameFieldStringValue = "BatterySoH History.csv"
         panel.allowedContentTypes = [.commaSeparatedText]
         panel.canCreateDirectories = true
         let csv = model.exportCSV()

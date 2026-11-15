@@ -128,7 +128,7 @@ struct DerivedFixtureParseTests {
         #expect(abs(w - -12.356) < 0.0001)
     }
 
-    /// Same encoding but arriving via an XML plist (how `bbstat --raw` fixtures store it).
+    /// Same encoding but arriving via an XML plist (how `sohstat --raw` fixtures store it).
     @Test func unsignedAmperageViaXMLPlist() throws {
         let xml = """
         <?xml version="1.0" encoding="UTF-8"?>
