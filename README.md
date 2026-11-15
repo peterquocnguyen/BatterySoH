@@ -14,9 +14,12 @@ Version 0.1.1 (build 2) · by Peter Quoc
 - **Battery summary**: precise charge, health (full-charge vs design capacity), cycles
   (`183 of 1000`), time to full or empty, and "charging on hold" when macOS is holding the
   charge (optimized charging / charge limit).
-- **Mac window**: model, capacities in mAh, cycles, temperature, adapter, Low Power
-  Mode, and battery gauge details.
-- **Devices**: batteries of an iPhone or iPad connected by cable or Wi-Fi sync (charge, and
+- **Window, device first**: a sidebar lists This Mac, then iPhone / iPad, then accessories,
+  each with its charge; select one to see its page. Every device appears once.
+- **This Mac page**: model, charge and health bars, capacities in mAh, cycles, temperature,
+  adapter, Low Power Mode, battery gauge details, and **History**: one sample per day, a health
+  chart, a monthly table (average health, max cycles) and CSV export.
+- **iPhone, iPad and accessory pages**: batteries of an iPhone or iPad connected by cable or Wi-Fi sync (charge, and
   for trusted devices health, cycles and temperature), with how current each reading is
   ("Updated 3 min ago"). When the connection drops, the last exact reading stays, faded and
   marked "not connected". A phone never read exactly shows the level it shares over Personal
@@ -24,15 +27,7 @@ Version 0.1.1 (build 2) · by Peter Quoc
   Wi-Fi sync), plus AirPods (left / right / case),
   Magic Mouse, Keyboard, Trackpad and other Bluetooth accessories. Apple Watch isn't
   available: watchOS shares its battery only with the paired iPhone.
-- **Insights**: like iPhone's Settings › Battery, for This Mac and your iPhone / iPad: current
-  level, a Daily Usage card ("You’re using less battery today than you usually do by 12:07"),
-  average vs today, a 7-day chart of battery used (all day and by this time of day), and health.
-  Built from a small 8-day charge log on disk, from exact readings only (an iPhone counts once
-  it is connected by cable or Wi-Fi sync; Personal Hotspot levels are never used). Per-app use
-  for iPhone stays on the iPhone.
-- **History**: one sample per day, a monthly table (average health, max cycles), a health
-  chart, and CSV export.
-- **About**: version, author, privacy note, data-source credits, and **Copy Diagnostics**,
+- **Settings › About**: version, author, privacy note, data-source credits, and **Copy Diagnostics**,
   which puts a plain-text report (app and macOS version, Mac model, current battery and
   charger readings) on the clipboard for bug reports.
 - **`bbstat` CLI**: the same data in the terminal, as text or JSON (`--devices` for other
@@ -40,7 +35,7 @@ Version 0.1.1 (build 2) · by Peter Quoc
 
 ## Screenshots
 
-_Coming soon._ <!-- popover (charging), popover (on battery), window: This Mac, window: History -->
+_Coming soon._ <!-- popover (charging), popover (on battery), window: This Mac page, window: iPhone page -->
 
 ## Requirements
 
@@ -95,7 +90,7 @@ The app icon is generated in code. To redraw it:
 swift scripts/make-icon.swift build/AppIcon.iconset   # writes Resources/AppIcon.icns
 ```
 
-Version, build number, copyright and bundle id live in `Resources/Info.plist`. The About tab
+Version, build number, copyright and bundle id live in `Resources/Info.plist`. Settings › About
 reads them from the bundle; unbundled runs (`swift run`, `--render`) fall back to constants in
 `AboutInfo` (`Sources/BatteryBuddy/Views/Window/AboutView.swift`), so bump both together.
 
@@ -117,8 +112,11 @@ Values the hardware doesn't report are shown as "—", never as 0.
 
 Battery Buddy only reads. It never writes SMC keys or changes how the Mac charges, needs no
 root or helper tool, and makes no network connections. Apart from its settings (in
-`UserDefaults`), the only thing it writes is its daily history at
-`~/Library/Application Support/BatteryBuddy/history.json`.
+`UserDefaults`), it writes its daily history at
+`~/Library/Application Support/BatteryBuddy/history.json` and the last exact reading of each
+iPhone / iPad at `last-exact-readings.json` next to it. (Builds with the old Insights tab also
+wrote a `charge-log/` folder there; current builds neither read nor write it, and it can be
+deleted.)
 
 ## About
 

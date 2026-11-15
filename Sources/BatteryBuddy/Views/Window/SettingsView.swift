@@ -2,8 +2,26 @@ import BatteryKit
 import ServiceManagement
 import SwiftUI
 
-/// F6 — Settings scene. Values live in UserDefaults under `SettingsKey`.
+/// F6 / F9 — Settings scene: "General" (every setting) and "About". Values live in
+/// UserDefaults under `SettingsKey`.
 struct SettingsView: View {
+    var body: some View {
+        TabView {
+            SettingsGeneralView()
+                .tabItem { Label("General", systemImage: "gearshape") }
+            SettingsAboutView()
+                .tabItem { Label("About", systemImage: "info.circle") }
+        }
+    }
+}
+
+enum SettingsLayout {
+    /// Both tabs share the width; each sets its own height, and the window resizes to the tab.
+    static let width: CGFloat = 440
+}
+
+/// F6 — the General tab.
+struct SettingsGeneralView: View {
     @Environment(BatteryModel.self) private var model
 
     @AppStorage(SettingsKey.showPercent) private var showPercent = true
@@ -89,7 +107,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 440)
+        .frame(width: SettingsLayout.width)
         .fixedSize(horizontal: false, vertical: true)
         .onAppear(perform: syncLaunchStatus)
     }
@@ -118,10 +136,53 @@ struct SettingsView: View {
     }
 }
 
+/// F9 — the About tab: the custom-drawn `AboutContent` at the tab's width.
+struct SettingsAboutView: View {
+    @Environment(BatteryModel.self) private var model
+
+    var body: some View {
+        AboutContent(info: .current(mac: model.mac)) {
+            AboutDiagnostics.report(info: .current(mac: model.mac), snapshot: model.snapshot,
+                                    lowPowerMode: model.isLowPowerMode)
+        }
+        .frame(width: SettingsLayout.width)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
 enum SettingsRefreshOption: Double, CaseIterable, Identifiable {
     case one = 1, two = 2, five = 5
 
     var id: Double { rawValue }
     var seconds: Double { rawValue }
     var label: String { "\(Int(rawValue)) s" }
+}
+
+// MARK: - Render entries
+
+enum SettingsRenderEntries {
+    @MainActor
+    static func all(mac: MacInfo) -> [RenderEntry] {
+        let info = AboutInfo(version: AboutInfo.fallbackVersion, build: AboutInfo.fallbackBuild,
+                             copyright: AboutInfo.fallbackCopyright, osVersion: "macOS 27.2 (27C61)",
+                             mac: mac, icon: AboutInfo.appIcon())
+        return [
+            RenderEntry("settings-about") {
+                AboutContent(info: info, diagnostics: { "" })
+                    .frame(width: SettingsLayout.width)
+                    .background(Color(nsColor: .windowBackgroundColor))
+            },
+            RenderEntry("settings-about-copied") {
+                AboutContent(info: info, diagnostics: { "" }, showsCopied: true)
+                    .frame(width: SettingsLayout.width)
+                    .background(Color(nsColor: .windowBackgroundColor))
+            },
+            RenderEntry("settings-general") {
+                // Form controls are AppKit-backed and may draw as placeholders here.
+                SettingsGeneralView()
+                    .environment(BatteryModel(previewSnapshot: .sampleCharging, history: []))
+                    .background(Color(nsColor: .windowBackgroundColor))
+            },
+        ]
+    }
 }

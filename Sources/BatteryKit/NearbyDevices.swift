@@ -136,8 +136,8 @@ public enum HotspotParser {
     ///
     /// A remembered reading is dropped when the same device (id) is connected. A hotspot entry is
     /// dropped when a connected or remembered device has the same model and a name that starts
-    /// with the advertised name stem. `knownNames` are other exact device names (e.g. from the
-    /// charge log) used only to fix the "…" on an advertised name that wasn't cut after all.
+    /// with the advertised name stem. `knownNames` are other exact device names (connected and
+    /// remembered names are always included) used only to fix the "…" on an advertised name that wasn't cut after all.
     public static func merge(connected: [DeviceBattery], remembered: [DeviceBattery] = [],
                              nearby: [DeviceBattery], knownNames: [String] = []) -> [DeviceBattery] {
         let connectedIDs = Set(connected.map(\.id))

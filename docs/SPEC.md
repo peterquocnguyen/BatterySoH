@@ -17,8 +17,9 @@ Manager, no third-party dependencies, no helper tools, no root.
 ## Non-goals (v1)
 
 - Apple Watch battery: watchOS shares it only with the paired iPhone; a Mac has no path to it.
-- Per-app battery use for iPhone / iPad (it never leaves the device; F11 says so).
-- Health history for other devices (F11 logs charge levels only).
+- Per-app battery use for iPhone / iPad (it never leaves the device).
+- Daily usage / charge-level logs (an Insights tab existed briefly and was removed) and health
+  history for other devices.
 - Writing SMC keys or implementing our own charge limiter. The only controls are the
   ones macOS itself offers in its Battery menu (F8), driven through macOS's own interfaces.
 - Cloud sync, accounts, analytics.
@@ -83,7 +84,23 @@ Compact rows under the flow: Battery Charge (bar + one-decimal %), Battery Healt
 (bar + %), Time until empty/full, Cycles, Temperature. Footer: settings gear,
 "Open window" button, Quit.
 
-### F4 — Window: This Mac (screenshot 2, middle)
+### Window layout (F4, F5, F10)
+Device first: every device appears once. A `NavigationSplitView` with
+- **Sidebar** (~200 pt, 180–280): one row per device — This Mac first (no header), then
+  "iPhone & iPad", then "Accessories" (empty sections hidden). Row: device glyph, name, percent
+  on the right (green bolt when charging; `≈ 75%` for a hotspot level; the whole row at 0.55
+  opacity for a not-connected or hotspot-only iPhone / iPad). Native source list (Liquid Glass on
+  macOS 26+). While no iPhone / iPad is listed, the sidebar foot says how they show up.
+- **Detail** (~460 pt, min 420): the selected device's page, in a ScrollView.
+- **Selection** persists in `UserDefaults` (`window.selectedDevice`: `this-mac` or the device
+  id). A stored device that isn't listed shows This Mac (the id is kept, so a device found a few
+  seconds after launch is selected again). When the selected device leaves the list while the
+  window is open: the entry that replaced it (same kind and model, new id — e.g. a hotspot-only
+  iPhone now read over Wi-Fi sync), else This Mac.
+- Window resizable between 600 × 480 and 1000 pt wide; SwiftUI remembers the frame. No toolbar
+  tabs. About lives in Settings (F9).
+
+### F4 — Window: This Mac page (screenshot 2, middle)
 - Header: laptop glyph, model name (`MacBook Pro`), detail
   (`14-inch, Nov 2024 · M4 Pro`), device identifier (`Mac16,8`).
 - Battery Charge: current mAh + bar labelled with %.
@@ -94,15 +111,18 @@ Compact rows under the flow: Battery Charge (bar + one-decimal %), Battery Healt
   Battery serial and gauge (`DeviceName`) in a collapsible "Details" section.
 - Manufacture date is shown only when the registry exposes it (not on Apple Silicon).
 
-### F5 — Window: History (screenshot 2, left)
+### F5 — Window: History (This Mac page, below F4)
 - The app records one sample per day (first launch, then on wake/timer):
   date, health %, cycles, full-charge mAh, design mAh.
 - Stored as JSON at `~/Library/Application Support/BatteryBuddy/history.json`.
-- Table grouped by month (`2025-11`): average health, max cycles.
-- Small line chart (Swift Charts) of health % over time.
-- Export CSV button.
+- "History" section on the This Mac page, under Details: Battery Health card (sample count,
+  since, current health; Swift Charts line of health % over time), then a table grouped by month
+  (`2025-11`): average health, max cycles. Export CSV button next to the section title. Empty
+  state: "No history yet". Not shown on a Mac without a battery.
 
 ### F6 — Settings
+- `TabView`: **General** (everything below) and **About** (F9); both 440 pt wide, the window
+  sizes to the tab.
 - Menu bar format options (F1), refresh interval while open (1/2/5 s),
   Launch at login (`SMAppService.mainApp`), temperature unit (°C/°F).
 - Stored in `UserDefaults`.
@@ -123,20 +143,24 @@ Compact rows under the flow: Battery Charge (bar + one-decimal %), Battery Healt
 - Private-API use is isolated in one file so it can be dropped if macOS changes it.
 
 ### F9 — About
-Tab in the main window: app icon, name, version (build), author **Peter Quoc**, copyright,
+Settings › About tab: app icon, name, version (build), author **Peter Quoc**, copyright,
 one-line description, privacy statement (no network, no data collection), credits for
 data sources, "Copy Diagnostics" (bbstat-style text for bug reports).
 
-### F10 — Window: Devices
-Tab between "This Mac" and "History": batteries of other devices this Mac can see.
-- **iPhone & iPad** section: devices on USB, or on Wi-Fi with "Show this iPhone when on
-  Wi-Fi" on. Card: device glyph, name, `iOS 26.1 · USB · iPhone18,1`, big percent (bolt when
-  charging), charge bar. Trusted devices add rows: Battery Health (full/design), Full Charge
-  Capacity, Design Capacity, Charge Cycles, Temperature. Untrusted: name/model only plus
-  "Unlock iPhone and tap Trust to see its battery." Never initiates pairing itself.
-- **Freshness**: every iPhone / iPad card says how current its number is
+### F10 — Window: other devices (one sidebar row and page each)
+Batteries of other devices this Mac can see.
+- **iPhone & iPad** pages: devices on USB, or on Wi-Fi with "Show this iPhone when on
+  Wi-Fi" on. Header like This Mac's: device glyph, name, `iOS 26.1 · USB`, model identifier
+  capsule (`iPhone18,1`). Battery Charge card: charge bar, then "Charging · Updated 3 min ago" /
+  "Updated 3 min ago". Trusted devices add a rows card: Battery Health (full/design), Full Charge
+  Capacity, Design Capacity, Charge Cycles, Temperature. Untrusted: no bar, just
+  "Unlock iPhone and tap Trust to see its battery." Never initiates pairing itself. Every
+  iPhone / iPad page ends with the footnotes: how iPhone / iPad show up (cable, Wi-Fi sync,
+  trust, last reading), what a Personal Hotspot level is, and that Apple Watch battery is not
+  available on a Mac.
+- **Freshness**: every iPhone / iPad page says how current its number is
   (`DeviceBattery.updatedAt`: when the exact read was taken; for a hotspot level, when this app
-  first saw the current value). Exact cards: "Updated just now" (< 1 min), "Updated 3 min ago"
+  first saw the current value). Exact pages: "Updated just now" (< 1 min), "Updated 3 min ago"
   (< 1 h), then the time ("Updated 12:40"), then the date ("Updated 14 Nov") — `Fmt.freshness`.
   Redrawn at least every 30 s while visible (`TimelineView(.periodic)`). Accessories: none.
 - **Not connected** (last exact reading): when a cabled / Wi-Fi-synced device disconnects
@@ -144,7 +168,7 @@ Tab between "This Mac" and "History": batteries of other devices this Mac can se
   `LastExactReadingStore`: one JSON file
   `~/Library/Application Support/BatteryBuddy/last-exact-readings.json`, written atomically when
   the reading changes, at most every 5 min otherwise, on disconnect and on quit; survives
-  relaunch). The card is faded (0.55 opacity on its values), grey bar, no charging bolt, no
+  relaunch). The page is faded (0.55 opacity on its values), grey bar, no charging bolt, no
   connection in the subtitle, caption "Last updated 12:40 · not connected" (relative when
   recent, the date when not today). Health / cycles rows stay, also faded. A hotspot level for
   the same phone is not shown.
@@ -152,11 +176,11 @@ Tab between "This Mac" and "History": batteries of other devices this Mac can se
   through Instant Hotspot — name (marked `…` when the advert may have cut it: ≥ 12 UTF-8 bytes,
   unless it is exactly 12 bytes and equals a known exact device name), model and the level the
   device last advertised. That level is **approximate** (`DeviceBattery.isApproximate`): it can
-  lag well behind the phone and carries no charging state. The card is faded like a
+  lag well behind the phone and carries no charging state. The page is faded like a
   not-connected one, with a "Not live" capsule badge next to the name, `≈ 75%`, a grey bar, no
-  bolt, "since 12:03" (`DeviceBattery.updatedAt`), and the caption "Last level the iPhone shared
+  bolt, "since 12:03" (`DeviceBattery.updatedAt`) next to "Battery Charge", and the note "Last level the iPhone shared
   over Personal Hotspot. It can lag well behind the phone."
-- **Setup card** on every nearby-only iPhone / iPad, at full strength as the card's primary
+- **Setup card** on every nearby-only iPhone / iPad page, at full strength as the page's primary
   element (accent-tinted, filled button): "For the live level, charging state, health
   and cycles: connect the iPhone by cable once, unlock it and tap Trust, then in Finder select
   it and turn on ‘Show this iPhone when on Wi-Fi’. After that Battery Buddy reads it wirelessly
@@ -167,10 +191,8 @@ Tab between "This Mac" and "History": batteries of other devices this Mac can se
   advertised name stem. Browsing runs while a
   surface is visible and is restarted (stop + start) every ~60 s in case the phone
   re-advertises; an empty result within 15 s of a restart is ignored.
-- **Accessories** section: one card per accessory; AirPods-style groups show Left / Right /
-  Case bars, headline percent = lowest bud.
-- Empty state when nothing is found; footnote explains the Wi-Fi/trust requirement and that
-  Apple Watch battery is not available on a Mac.
+- **Accessories**: one page per accessory (glyph, name, `Bluetooth`, Battery Charge card with
+  one bar, or Left / Right / Case bars for AirPods-style groups; sidebar percent = lowest bud).
 - Refresh: accessories on every UI tick (cheap IOPS read); iPhone/iPad on attach and at most
   once a minute while a surface is visible. MobileDevice loads on first visible surface.
 - Private-API use is isolated: MobileDevice in `MobileDevices.swift`, Sharing in
@@ -181,44 +203,6 @@ iPhone on the same Apple Account shows the percent the Wi-Fi menu shows for its 
 marked approximate (`bbstat --devices`: `≈75% (hotspot, may lag)`). `bbstat --devices` adds
 `· updated just now` to exact iPhone / iPad lines and `· not connected (last exact reading)` to a
 remembered one (it reads the app's last-exact file, never writes it).
-
-### F11 — Window: Insights
-Tab between "Devices" and "History", modelled on iOS Settings › Battery. (The tab titles are
-"Mac / Devices / Insights / History / About": with "This Mac" the five-segment toolbar
-control measures ~350 pt and doesn't fit the 420 pt window.)
-- **Charge log** (`ChargeLog` / `ChargeLogStore` in BatteryKit): per-device samples
-  `(date, percent, isCharging?, isApproximate)` in
-  `~/Library/Application Support/BatteryBuddy/charge-log/<sha256(key) prefix>.json`. Identical
-  consecutive readings extend one run (`date…until`) instead of adding samples; samples older
-  than 8 days are dropped. Appends are written atomically; run extensions only in memory, flushed
-  at most every 15 min and on quit. iPhone / iPad key = model + advertised name stem (first 12
-  UTF-8 bytes). **Exact data only**: approximate (hotspot) samples are never recorded
-  (`ChargeLogStore.record` ignores them); ones logged by older builds are pruned when the store
-  loads (a log left empty is deleted) and ignored by the analysis.
-- **Sampling**: This Mac on every IOPS change, every UI tick while visible, and every 5 min in
-  the background (the slow timer's existing registry read; nothing extra). iPhone / iPad on
-  every exact (cabled / Wi-Fi) read (`ChargeLog.exactSample`). Hotspot results are not logged;
-  hotspot browsing runs only while a surface is visible (Devices tab), never in the background.
-- **Analysis** (`ChargeAnalysis`, pure, tested): battery **used** = sum of percentage drops
-  between consecutive exact readings (approximate samples are filtered out first); rises
-  (charging) count zero; gaps over 2 h are unknown. Each drop is spread over its interval, so
-  it splits across midnight and the time-of-day cutoff. Per day: all-day use and use from
-  midnight to the current time of day ("by 12:07"). A day counts when it has ≥ 1 h of covered
-  time. Averages over the previous 7 days that count; with fewer than 3 such days (or no reading
-  today) the sentence is "Battery Buddy needs a few days of data to compare." Otherwise today vs
-  the average by now: less / about as much (within ±15 % of the average, at least ±1 point) /
-  more — "You’re using less battery today than you usually do by 12:07."
-- **UI**: device picker (This Mac + each iPhone / iPad with an exact log, + iPhones / iPads in
-  range without one). Level card (exact readings only): big percent, state (Charging / On
-  battery / Not connected / Last reading), time to full or empty when known (Mac) or how current
-  the reading is (iPhone), bar to 100 %. Daily Usage card: the sentence, Average vs Today, a bar
-  chart of the previous 7 days + today (S M T W T F S Today) with "All Day" (light) stacked on
-  "Daily by 12:07" (dark) and a dashed Average line, legend. Battery Health card (Mac always;
-  iPhone only with an exact read). An iPhone / iPad with no exact samples shows "Connect this
-  iPhone by cable or Wi-Fi sync to start Insights. Battery Buddy only uses exact readings here."
-  with the Wi-Fi sync setup guidance and **Open Finder** button. Footnote for iPhone / iPad: "Per-app battery use for iPhone stays on the iPhone:
-  Settings › Battery." Empty state: "Insights fill in as Battery Buddy runs. Keep it open in the
-  menu bar."
 
 ### F7 — `bbstat` CLI (dev + power-user tool)
 `swift run bbstat` prints the current snapshot as human text; `--json` prints JSON.
@@ -242,10 +226,10 @@ Rules:
   tested with fixtures; readers only fetch dictionaries.
 - Every optional hardware value is `Optional` in the model; views render `—` for `nil`.
 - UI polls only while popover/window is visible; background = IOPS notifications +
-  a 5-minute timer (one history sample per day, one charge-log reading).
+  a 5-minute timer (menu bar title, one history sample per day).
 
 ## Milestones
 1. M1 Core: BatteryKit models/parser/readers + bbstat + tests.
 2. M2 Popover: F1, F2, F3.
-3. M3 Window: F4, F5, F6.
+3. M3 Window: F4, F5, F6 (device-first split view since 0.1.x; F10 pages in the same window).
 4. M4 Ship: bundle script, app icon, README, launch-at-login, v0.1.0 tag.

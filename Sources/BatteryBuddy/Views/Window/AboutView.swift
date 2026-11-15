@@ -2,9 +2,9 @@ import AppKit
 import BatteryKit
 import SwiftUI
 
-/// F9 — "About" tab content: icon, name, version, author, privacy, credits, diagnostics.
-/// Pure drawing (the button uses the custom pill style under `--render`); the window wraps it
-/// in a ScrollView.
+/// F9 — About (Settings › About): icon, name, version, author, privacy, credits, diagnostics.
+/// Pure drawing (the button uses the custom pill style under `--render`), so the Settings tab
+/// shows it directly at a fixed width.
 struct AboutContent: View {
     let info: AboutInfo
     /// Builds the diagnostics text at click time, so it reflects the latest snapshot.
@@ -166,8 +166,8 @@ private struct AboutPrivacyCard: View {
 
 // MARK: - App info
 
-/// Everything the About tab shows that depends on the bundle or the machine. Render entries
-/// build it with fixed values; the window uses `current(mac:)`.
+/// Everything About shows that depends on the bundle or the machine. Render entries
+/// build it with fixed values; Settings uses `current(mac:)`.
 struct AboutInfo {
     static let appName = "Battery Buddy"
     static let author = "Peter Quoc"

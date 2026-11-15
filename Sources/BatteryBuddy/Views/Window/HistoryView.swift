@@ -2,12 +2,10 @@ import BatteryKit
 import Charts
 import SwiftUI
 
-/// F5 — "History" tab content: health chart, monthly table, CSV export.
-/// Pure drawing (Swift Charts renders headlessly); the window wraps it in a ScrollView.
-struct HistoryContent: View {
+/// F5 — History section of the This Mac page: health chart, monthly table, CSV export.
+/// Pure drawing (Swift Charts renders headlessly).
+struct WindowHistorySection: View {
     let history: [HistorySample]
-    /// Group title for the table, e.g. "This Mac (MacBook Pro)".
-    let deviceTitle: String
     /// nil hides the export button (empty state).
     var onExport: (() -> Void)?
     var exportMessage: String?
@@ -15,43 +13,43 @@ struct HistoryContent: View {
     private var samples: [HistorySample] { history.sorted { $0.date < $1.date } }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 12) {
+                Text("History")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                if let onExport {
+                    Button("Export CSV…", action: onExport)
+                        .windowPillButton()
+                        .help("Save every daily sample as a CSV file")
+                }
+            }
             if samples.isEmpty {
                 HistoryEmptyState()
             } else {
-                header
                 WindowCard {
-                    HistoryChart(samples: samples)
-                        .frame(height: 170)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 14)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Battery Health").font(.headline)
+                        Text(summary)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 2)
+                        HistoryChart(samples: samples)
+                            .frame(height: 170)
+                            .padding(.top, 12)
+                    }
+                    .padding(14)
                 }
-                HistoryMonthTable(title: deviceTitle,
-                                  months: HistoryAggregator.monthly(samples).reversed())
+                HistoryMonthTable(months: HistoryAggregator.monthly(samples).reversed())
+                    .padding(.top, 8)
             }
-        }
-        .padding(20)
-    }
-
-    private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Battery Health").font(.headline)
-                Text(summary)
-                    .font(.callout)
+            if let exportMessage {
+                Text(exportMessage)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                if let exportMessage {
-                    Text(exportMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-            }
-            Spacer(minLength: 8)
-            if let onExport {
-                Button("Export CSV…", action: onExport)
-                    .windowPillButton()
-                    .help("Save every daily sample as a CSV file")
+                    .lineLimit(2)
+                    .padding(.horizontal, 2)
             }
         }
     }
@@ -120,7 +118,6 @@ struct HistoryChart: View {
 // MARK: - Monthly table
 
 struct HistoryMonthTable: View {
-    let title: String
     /// Newest first.
     let months: [MonthSummary]
 
@@ -128,29 +125,23 @@ struct HistoryMonthTable: View {
     private let cyclesWidth: CGFloat = 84
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .padding(.leading, 2)
-            WindowCard {
-                VStack(spacing: 0) {
-                    row(month: "Month", health: "Ø Health", cycles: "Cycles")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 7)
-                    WindowHairline()
-                    ForEach(Array(months.enumerated()), id: \.element.id) { index, month in
-                        row(month: month.period,
-                            health: Fmt.percent(month.averageHealthPercent, decimals: 1),
-                            cycles: "\(month.maxCycleCount)")
-                            .monospacedDigit()
-                            .padding(.vertical, 5)
-                            .background(index.isMultiple(of: 2) ? Color.clear : Color.primary.opacity(0.035))
-                    }
+        WindowCard {
+            VStack(spacing: 0) {
+                row(month: "Month", health: "Ø Health", cycles: "Cycles")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 7)
+                WindowHairline()
+                ForEach(Array(months.enumerated()), id: \.element.id) { index, month in
+                    row(month: month.period,
+                        health: Fmt.percent(month.averageHealthPercent, decimals: 1),
+                        cycles: "\(month.maxCycleCount)")
+                        .monospacedDigit()
+                        .padding(.vertical, 5)
+                        .background(index.isMultiple(of: 2) ? Color.clear : Color.primary.opacity(0.035))
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
     }
 
@@ -183,7 +174,7 @@ struct HistoryEmptyState: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 24)
-            .padding(.vertical, 40)
+            .padding(.vertical, 28)
         }
     }
 }

@@ -1,8 +1,37 @@
 import BatteryKit
 import SwiftUI
 
-/// F4 — "This Mac" tab content. Pure drawing, no AppKit controls: the window wraps it in a
-/// ScrollView, the render harness draws it directly.
+/// F4/F5 — the This Mac page: the battery (`WindowThisMacContent`), then its History.
+/// Pure drawing, no AppKit controls: the window wraps it in a ScrollView, the render harness
+/// draws it directly.
+struct WindowMacPage: View {
+    let mac: MacInfo
+    let snapshot: BatterySnapshot?
+    let temperatureUnit: Fmt.TemperatureUnit
+    let lowPowerMode: Bool
+    @Binding var detailsExpanded: Bool
+    let history: [HistorySample]
+    /// nil hides the export button.
+    var onExport: (() -> Void)?
+    var exportMessage: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            WindowThisMacContent(mac: mac, snapshot: snapshot, temperatureUnit: temperatureUnit,
+                                 lowPowerMode: lowPowerMode, detailsExpanded: $detailsExpanded)
+            // A Mac without a battery has no history to show.
+            if snapshot != nil || !history.isEmpty {
+                WindowHistorySection(history: history, onExport: history.isEmpty ? nil : onExport,
+                                     exportMessage: exportMessage)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .padding(.bottom, 20)
+            }
+        }
+    }
+}
+
+/// F4 — the battery part of the This Mac page.
 struct WindowThisMacContent: View {
     let mac: MacInfo
     let snapshot: BatterySnapshot?
@@ -34,7 +63,7 @@ private struct WindowMacHeader: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
-            Image(systemName: mac.isLaptop ? "laptopcomputer" : "desktopcomputer")
+            Image(systemName: mac.symbol)
                 .font(.system(size: 40, weight: .light))
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(.tint)
@@ -174,8 +203,6 @@ private struct WindowNoBattery: View {
 // MARK: - Derived display values
 
 private extension MacInfo {
-    var isLaptop: Bool { name.localizedCaseInsensitiveContains("book") }
-
     /// "14-inch, Nov 2024 · M4 Pro"
     var windowDetailLine: String? {
         let parts = [detail, shortChip].compactMap { $0 }.filter { !$0.isEmpty }

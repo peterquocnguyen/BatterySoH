@@ -83,13 +83,16 @@ public extension DeviceBattery {
         Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 15, hour: hour, minute: minute, second: second))
     }
 
+    /// 2026-11-15 12:07 local time: the "now" of the window render entries.
+    static var sampleNow: Date { sampleTime(12, 7) ?? Date() }
+
     static let sampleIPhone = DeviceBattery(
         id: "sample-iphone", name: "Work iPhone", kind: .iPhone, connection: .usb,
         model: "iPhone18,1", osVersion: "iOS 26.1", percent: 64, isCharging: true, externalConnected: true,
         fullChargeCapacityMAh: 3712, designCapacityMAh: 4005, cycleCount: 212, temperatureC: 30.2,
         updatedAt: sampleTime(12, 4))
 
-    /// Read over Wi-Fi sync seconds before `ChargeLog.sampleNow`: "Updated just now".
+    /// Read over Wi-Fi sync seconds before `sampleNow`: "Updated just now".
     static let sampleWiFiIPhone = DeviceBattery(
         id: "sample-wifi-iphone", name: "Peter’s iP", kind: .iPhone, connection: .wifi,
         model: "iPhone14,8", osVersion: "iOS 27.1", percent: 91, isCharging: true, externalConnected: true,
@@ -130,66 +133,4 @@ public extension DeviceBattery {
 
     static let samples: [DeviceBattery] = [sampleIPhone, sampleIPadUntrusted, sampleNearbyIPhone,
                                            sampleAirPods, sampleMouse, sampleKeyboard]
-}
-
-/// Synthetic charge logs for previews and render checks: a realistic week, deterministic.
-public extension ChargeLog {
-    /// 2026-11-15 12:07 local time: the "now" of the Insights render entries.
-    static var sampleNow: Date {
-        Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 15, hour: 12, minute: 7)) ?? Date()
-    }
-
-    /// This Mac: on battery 8:45–12:30 and 13:15–18:30, charging over lunch, asleep at night
-    /// (no readings). Readings every 5 minutes; today runs lighter than usual.
-    static func sampleMacWeek(now: Date = sampleNow, calendar: Calendar = .current) -> ChargeLog {
-        var log = ChargeLog(id: thisMacID, name: "MacBook Pro")
-        simulate(&log, now: now, calendar: calendar, factors: [1.0, 0.85, 1.25, 0.7, 1.1, 0.95, 1.15, 0.55],
-                 step: 5, hours: 8.75...18.5, drainPerHour: 9, charging: 12.5..<13.25, chargePerHour: 40,
-                 approximate: false)
-        return log
-    }
-
-    /// An iPhone on Wi-Fi sync: exact readings every 15 minutes, 7:00–23:00, charging on the
-    /// desk 18:00–19:00.
-    static func sampleIPhoneWeek(now: Date = sampleNow, calendar: Calendar = .current) -> ChargeLog {
-        var log = ChargeLog(id: "ios|iPhone14,8|Peter’s iP", name: "Peter’s iP", kind: .iPhone, model: "iPhone14,8")
-        simulate(&log, now: now, calendar: calendar, factors: [0.9, 1.1, 1.0, 1.3, 0.8, 1.0, 1.2, 1.15],
-                 step: 15, hours: 7...23, drainPerHour: 5, charging: 18..<19, chargePerHour: 30,
-                 approximate: false)
-        return log
-    }
-
-    /// A log from an older build that only holds approximate (Instant Hotspot) samples:
-    /// Insights ignores them.
-    static func sampleApproximateIPhoneWeek(now: Date = sampleNow, calendar: Calendar = .current) -> ChargeLog {
-        var log = ChargeLog(id: "ios|iPhone14,8|Peter’s iP", name: "Peter’s iP…", kind: .iPhone, model: "iPhone14,8")
-        simulate(&log, now: now, calendar: calendar, factors: [0.9, 1.1, 1.0, 1.3, 0.8, 1.0, 1.2, 1.15],
-                 step: 30, hours: 7...23, drainPerHour: 5, charging: 18..<19, chargePerHour: 30,
-                 approximate: true)
-        return log
-    }
-
-    private static func simulate(_ log: inout ChargeLog, now: Date, calendar: Calendar, factors: [Double],
-                                 step: Int, hours: ClosedRange<Double>, drainPerHour: Double,
-                                 charging: Range<Double>, chargePerHour: Double, approximate: Bool) {
-        let today = calendar.startOfDay(for: now)
-        for (i, factor) in factors.enumerated() {
-            guard let day = calendar.date(byAdding: .day, value: i - (factors.count - 1), to: today) else { continue }
-            var level = 100.0
-            var minute = Int(hours.lowerBound * 60)
-            while Double(minute) <= hours.upperBound * 60 {
-                let date = day.addingTimeInterval(TimeInterval(minute * 60))
-                if date > now { break }
-                let hour = Double(minute) / 60
-                let isCharging = charging.contains(hour)
-                // Busier late morning and mid-afternoon.
-                let wobble = 1 + 0.35 * sin(hour * 1.3 + Double(i))
-                let delta = Double(step) / 60 * (isCharging ? chargePerHour : -drainPerHour * factor * wobble)
-                level = min(100, max(3, level + delta))
-                log.record(ChargeSample(date: date, percent: level.rounded(),
-                                        isCharging: approximate ? nil : isCharging, isApproximate: approximate))
-                minute += step
-            }
-        }
-    }
 }

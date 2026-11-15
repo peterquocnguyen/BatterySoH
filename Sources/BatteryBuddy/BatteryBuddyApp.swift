@@ -24,7 +24,9 @@ struct BatteryBuddyApp: App {
             MainWindowView()
                 .environment(model)
         }
+        // Resizable between the content's min and max size; SwiftUI remembers the frame.
         .windowResizability(.contentSize)
+        .defaultSize(width: WindowLayout.idealWidth, height: WindowLayout.idealHeight)
         .windowToolbarStyle(.unified(showsTitle: false))
         .defaultPosition(.center)
 

@@ -1,91 +1,64 @@
 import AppKit
 import BatteryKit
-import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// F4/F5/F9/F10/F11 — the main window: a tab switcher over "This Mac", "Devices", "Insights",
-/// "History" and "About".
-/// Tab contents are custom-drawn views; only this outer layer adds the ScrollView.
+/// F4/F5/F10 — the main window, device first: a sidebar with one row per device (This Mac,
+/// iPhone / iPad, accessories) and that device's page as the detail.
+/// Pages are custom-drawn views; only this outer layer adds the List and the ScrollView.
 struct MainWindowView: View {
     @Environment(BatteryModel.self) private var model
     @AppStorage(SettingsKey.temperatureUnit) private var temperatureUnit: Fmt.TemperatureUnit = .celsius
-    @AppStorage(WindowStorageKey.selectedTab) private var tab: WindowTab = .thisMac
+    /// `WindowSidebarItem.id` of the selected row; may name a device that isn't around right now.
+    @AppStorage(WindowStorageKey.selection) private var storedSelection = WindowSidebarItem.thisMacID
     @AppStorage(WindowStorageKey.detailsExpanded) private var detailsExpanded = false
-    @AppStorage(WindowStorageKey.insightsDevice) private var insightsDevice = ChargeLog.thisMacID
-    @State private var lowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
     @State private var exportMessage: String?
 
     var body: some View {
-        layout
-            .frame(width: WindowLayout.width)
-            .frame(minHeight: 480, idealHeight: WindowLayout.height, maxHeight: 900)
-            .debugWindowDump("main window")
-            .onAppear { model.surfaceAppeared() }
-        .onDisappear { model.surfaceDisappeared() }
-        .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)
-            .receive(on: RunLoop.main)) { _ in
-            lowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
+        NavigationSplitView {
+            WindowSidebar(sections: sections, selection: selectionBinding)
+                .navigationSplitViewColumnWidth(min: WindowLayout.sidebarMinWidth,
+                                                ideal: WindowLayout.sidebarWidth,
+                                                max: WindowLayout.sidebarMaxWidth)
+        } detail: {
+            ScrollView { detail }
+                .scrollBounceBehavior(.basedOnSize)
+                .navigationSplitViewColumnWidth(min: WindowLayout.detailMinWidth, ideal: WindowLayout.detailWidth)
         }
+        .frame(minWidth: WindowLayout.minWidth, idealWidth: WindowLayout.idealWidth, maxWidth: WindowLayout.maxWidth,
+               minHeight: WindowLayout.minHeight, idealHeight: WindowLayout.idealHeight, maxHeight: .infinity)
+        .debugWindowDump("main window")
+        .onAppear { model.surfaceAppeared() }
+        .onDisappear { model.surfaceDisappeared() }
+        .onChange(of: model.devices) { old, new in
+            storedSelection = WindowSelection.afterChange(stored: storedSelection, old: old, new: new)
+        }
+    }
+
+    private var sections: [WindowSidebarSection] {
+        WindowSidebarSection.all(mac: model.mac, snapshot: model.snapshot, devices: model.devices)
+    }
+
+    /// The stored device when it is listed, else This Mac (the stored id is kept, so a device
+    /// that shows up a little after launch is selected again).
+    private var selection: String {
+        WindowSelection.resolve(stored: storedSelection, available: model.devices.map(\.id))
+    }
+
+    private var selectionBinding: Binding<String?> {
+        Binding(get: { selection }, set: { if let id = $0 { storedSelection = id } })
     }
 
     @ViewBuilder
-    private var layout: some View {
-        if #available(macOS 26, *) {
-            // Native Tahoe layout: the switcher is a segmented control in the window toolbar, so
-            // the system places it in the title bar, gives it Liquid Glass, and fades content that
-            // scrolls under the toolbar (scroll edge effect) instead of overlapping it.
-            scrollContent
-                .toolbar {
-                    ToolbarItem(placement: .principal) {
-                        Picker("Section", selection: $tab) {
-                            ForEach(WindowTab.allCases) { tab in
-                                Text(tab.title).tag(tab)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        .fixedSize()
-                    }
-                }
-                .containerBackground(.thinMaterial, for: .window)
+    private var detail: some View {
+        if let device = model.devices.first(where: { $0.id == selection }) {
+            WindowDevicePage(device: device, temperatureUnit: temperatureUnit, onOpenFinder: Self.openFinder)
+                .id(device.id)
         } else {
-            VStack(spacing: 0) {
-                WindowTabBar(selection: $tab)
-                WindowHairline()
-                scrollContent
-            }
-            .background(Color(nsColor: .windowBackgroundColor))
+            WindowMacPage(mac: model.mac, snapshot: model.snapshot, temperatureUnit: temperatureUnit,
+                          lowPowerMode: model.isLowPowerMode, detailsExpanded: $detailsExpanded,
+                          history: model.history, onExport: exportCSV, exportMessage: exportMessage)
         }
-    }
-
-    private var scrollContent: some View {
-        ScrollView {
-            switch tab {
-            case .thisMac:
-                WindowThisMacContent(mac: model.mac, snapshot: model.snapshot,
-                                     temperatureUnit: temperatureUnit, lowPowerMode: lowPowerMode,
-                                     detailsExpanded: $detailsExpanded)
-            case .devices:
-                WindowDevicesContent(devices: model.devices, temperatureUnit: temperatureUnit,
-                                     onOpenFinder: Self.openFinder)
-            case .insights:
-                InsightsContent(subjects: InsightsSubject.all(mac: model.mac, snapshot: model.snapshot,
-                                                              devices: model.devices, logs: model.chargeLogs,
-                                                              unit: temperatureUnit),
-                                selection: $insightsDevice, now: Date(), onOpenFinder: Self.openFinder)
-            case .history:
-                HistoryContent(history: model.history, deviceTitle: "This Mac (\(model.mac.name))",
-                               onExport: model.history.isEmpty ? nil : exportCSV,
-                               exportMessage: exportMessage)
-            case .about:
-                AboutContent(info: .current(mac: model.mac)) {
-                    AboutDiagnostics.report(info: .current(mac: model.mac), snapshot: model.snapshot,
-                                            lowPowerMode: lowPowerMode)
-                }
-            }
-        }
-        .scrollBounceBehavior(.basedOnSize)
     }
 
     /// Wi-Fi sync is turned on in Finder's sidebar device page.
@@ -118,160 +91,41 @@ struct MainWindowView: View {
 }
 
 enum WindowLayout {
-    /// The toolbar's principal item is centred on the window and macOS hides it entirely when
-    /// it would collide with the traffic lights: five segments (~350 pt) need ≥ ~520 pt.
-    static let width: CGFloat = 540
-    static let height: CGFloat = 640
+    static let sidebarWidth: CGFloat = 200
+    static let sidebarMinWidth: CGFloat = 180
+    static let sidebarMaxWidth: CGFloat = 280
+    static let detailWidth: CGFloat = 460
+    static let detailMinWidth: CGFloat = 420
+    static let minWidth: CGFloat = sidebarMinWidth + detailMinWidth
+    static let idealWidth: CGFloat = sidebarWidth + detailWidth
+    static let maxWidth: CGFloat = 1000
+    static let minHeight: CGFloat = 480
+    static let idealHeight: CGFloat = 640
 }
 
 private enum WindowStorageKey {
-    static let selectedTab = "window.selectedTab"
+    static let selection = "window.selectedDevice"
     static let detailsExpanded = "window.thisMac.detailsExpanded"
-    static let insightsDevice = "window.insights.device"
 }
 
-enum WindowTab: String, CaseIterable, Identifiable {
-    case thisMac, devices, insights, history, about
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .thisMac: return "This Mac"
-        case .devices: return "Devices"
-        case .insights: return "Insights"
-        case .history: return "History"
-        case .about: return "About"
-        }
+/// Which sidebar row is selected, given what is stored and what is listed.
+enum WindowSelection {
+    static func resolve(stored: String, available: [String]) -> String {
+        available.contains(stored) ? stored : WindowSidebarItem.thisMacID
     }
 
-    var symbol: String {
-        switch self {
-        case .thisMac: return "laptopcomputer"
-        case .devices: return "ipad.and.iphone"
-        case .insights: return "chart.bar.xaxis"
-        case .history: return "chart.xyaxis.line"
-        case .about: return "info.circle"
+    /// The selected device left the list: pick the entry that replaced it (a hotspot-only iPhone
+    /// that is now read exactly has a new id but the same kind and model), else This Mac.
+    /// Anything else keeps the stored id.
+    static func afterChange(stored: String, old: [DeviceBattery], new: [DeviceBattery]) -> String {
+        guard let gone = old.first(where: { $0.id == stored }), !new.contains(where: { $0.id == stored }) else {
+            return stored
         }
-    }
-}
-
-/// Mac / Devices / Insights / History / About switcher. macOS 26+: a compact glass capsule with segments (like a
-/// Tahoe segmented control). macOS 14–25: the toolbar-style icon-over-label tabs.
-/// Custom-drawn either way so `--render` can capture it.
-struct WindowTabBar: View {
-    @Binding var selection: WindowTab
-    @Environment(\.renderHarness) private var renderHarness
-
-    var body: some View {
-        if LiquidGlass.isSupported {
-            HStack(spacing: 2) {
-                ForEach(WindowTab.allCases) { tab in
-                    WindowSegmentButton(tab: tab, isSelected: tab == selection) { selection = tab }
-                }
-            }
-            .padding(3)
-            .modifier(WindowGlassCapsule(live: !renderHarness))
-            .frame(maxWidth: .infinity)
-            .padding(.top, 6)
-            .padding(.bottom, 4)
-        } else {
-            HStack(spacing: 6) {
-                ForEach(WindowTab.allCases) { tab in
-                    WindowTabButton(tab: tab, isSelected: tab == selection) { selection = tab }
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
+        let oldIDs = Set(old.map(\.id))
+        let successor = new.first { d in
+            !oldIDs.contains(d.id) && d.kind == gone.kind && d.model != nil && d.model == gone.model
         }
-    }
-}
-
-/// Glass capsule behind the segments; a flat translucent capsule where glass can't draw.
-private struct WindowGlassCapsule: ViewModifier {
-    var live: Bool
-
-    func body(content: Content) -> some View {
-        if live, #available(macOS 26, *) {
-            GlassEffectContainer {
-                content.glassEffect(.regular.interactive(), in: .capsule)
-            }
-        } else {
-            content
-                .background(Capsule().fill(Color.primary.opacity(0.06)))
-                .overlay(Capsule().strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
-        }
-    }
-}
-
-/// One segment of the glass switcher: icon + title, the selected one raised.
-private struct WindowSegmentButton: View {
-    let tab: WindowTab
-    let isSelected: Bool
-    let action: () -> Void
-    @Environment(\.colorScheme) private var scheme
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            // Text only, like the native toolbar segmented control it stands in for: five
-            // icon + label segments don't fit the toolbar.
-            Text(tab.title)
-                .font(.system(size: 12.5, weight: isSelected ? .semibold : .medium))
-                .foregroundStyle(isSelected ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
-                .lineLimit(1)
-                .fixedSize()
-            .padding(.horizontal, 14)
-            .frame(height: 26)
-            .background(selectionFill)
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .accessibilityLabel(tab.title)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-
-    @ViewBuilder
-    private var selectionFill: some View {
-        if isSelected {
-            Capsule()
-                .fill(scheme == .dark ? Color.white.opacity(0.16) : Color.white.opacity(0.92))
-                .shadow(color: .black.opacity(scheme == .dark ? 0 : 0.10), radius: 1.5, y: 0.5)
-        } else if hovering {
-            Capsule().fill(Color.primary.opacity(0.06))
-        }
-    }
-}
-
-/// Toolbar-style icon-over-label tab (macOS 14–25).
-private struct WindowTabButton: View {
-    let tab: WindowTab
-    let isSelected: Bool
-    let action: () -> Void
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 3) {
-                Image(systemName: tab.symbol)
-                    .font(.system(size: 18, weight: .regular))
-                    .frame(height: 22)
-                Text(tab.title)
-                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-            }
-            .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-            .frame(width: 74, height: 50)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.primary.opacity(isSelected ? 0.07 : (hovering ? 0.04 : 0)))
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .accessibilityLabel(tab.title)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        return successor?.id ?? WindowSidebarItem.thisMacID
     }
 }
 
@@ -284,151 +138,96 @@ enum WindowRenderEntries {
         var onBattery = BatterySnapshot.sampleOnBattery
         onBattery.manufactureDate = Calendar(identifier: .gregorian)
             .date(from: DateComponents(year: 2024, month: 10, day: 17))
-        let aboutInfo = AboutInfo(version: AboutInfo.fallbackVersion, build: AboutInfo.fallbackBuild,
-                                  copyright: AboutInfo.fallbackCopyright, osVersion: "macOS 27.2 (27C61)",
-                                  mac: mac, icon: AboutInfo.appIcon())
         let end = Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 11, day: 15)) ?? Date()
+        let history = HistorySample.sampleSeries(endingAt: end)
+        let now = DeviceBattery.sampleNow
+        // Live iPhone (USB, charging), the last exact reading of a sleeping one, a hotspot-only
+        // one, AirPods and a mouse.
+        let devices: [DeviceBattery] = [.sampleIPhone, DeviceBattery.sampleRememberedIPhone.lastKnown,
+                                        .sampleNearbyIPhone, .sampleAirPods, .sampleMouse]
+        let sections = WindowSidebarSection.all(mac: mac, snapshot: .sampleCharging, devices: devices)
 
         return [
-            RenderEntry("window-thismac-charging") {
-                frame(.thisMac) {
-                    WindowThisMacContent(mac: mac, snapshot: .sampleCharging, temperatureUnit: .celsius,
-                                         lowPowerMode: false, detailsExpanded: .constant(true))
+            RenderEntry("window-sidebar") {
+                sidebar(sections, selection: WindowSidebarItem.thisMacID)
+            },
+            RenderEntry("window-sidebar-mac-only") {
+                sidebar(WindowSidebarSection.all(mac: mac, snapshot: onBattery, devices: [.sampleMouse]),
+                        selection: WindowSidebarItem.thisMacID)
+            },
+            RenderEntry("window-split-iphone") {
+                // Sidebar and page side by side, the way the window lays them out.
+                HStack(spacing: 0) {
+                    sidebar(sections, selection: DeviceBattery.sampleIPhone.id, height: nil)
+                    Rectangle().fill(Color(nsColor: .separatorColor)).frame(width: 0.5)
+                    page {
+                        WindowDevicePage(device: .sampleIPhone, temperatureUnit: .celsius, now: now)
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+            },
+            RenderEntry("window-mac-charging") {
+                page {
+                    WindowMacPage(mac: mac, snapshot: .sampleCharging, temperatureUnit: .celsius, lowPowerMode: false,
+                                  detailsExpanded: .constant(true), history: history, onExport: {})
                 }
             },
-            RenderEntry("window-thismac-onbattery") {
-                frame(.thisMac) {
-                    WindowThisMacContent(mac: mac, snapshot: onBattery, temperatureUnit: .fahrenheit,
-                                         lowPowerMode: true, detailsExpanded: .constant(false))
+            RenderEntry("window-mac-onbattery-nohistory") {
+                page {
+                    WindowMacPage(mac: mac, snapshot: onBattery, temperatureUnit: .fahrenheit, lowPowerMode: true,
+                                  detailsExpanded: .constant(false), history: [], onExport: {})
                 }
             },
-            RenderEntry("window-thismac-draining") {
-                frame(.thisMac) {
-                    WindowThisMacContent(mac: mac, snapshot: .sampleDraining, temperatureUnit: .celsius,
-                                         lowPowerMode: false, detailsExpanded: .constant(true))
+            RenderEntry("window-mac-nobattery") {
+                page {
+                    WindowMacPage(mac: MacInfo(name: "Mac mini", detail: "2024", chip: "Apple M4", identifier: "Mac16,10"),
+                                  snapshot: nil, temperatureUnit: .celsius, lowPowerMode: false,
+                                  detailsExpanded: .constant(false), history: [])
                 }
             },
-            RenderEntry("window-thismac-just-unplugged") {
-                frame(.thisMac) {
-                    WindowThisMacContent(mac: mac, snapshot: .sampleJustUnplugged, temperatureUnit: .celsius,
-                                         lowPowerMode: false, detailsExpanded: .constant(false))
+            RenderEntry("window-iphone-live") {
+                page { WindowDevicePage(device: .sampleIPhone, temperatureUnit: .celsius, now: now) }
+            },
+            RenderEntry("window-iphone-remembered") {
+                page {
+                    WindowDevicePage(device: DeviceBattery.sampleRememberedIPhone.lastKnown, temperatureUnit: .celsius,
+                                     now: now)
                 }
             },
-            RenderEntry("window-thismac-nobattery") {
-                frame(.thisMac) {
-                    WindowThisMacContent(mac: MacInfo(name: "Mac mini", detail: "2024", chip: "Apple M4",
-                                                      identifier: "Mac16,10"),
-                                         snapshot: nil, temperatureUnit: .celsius,
-                                         lowPowerMode: false, detailsExpanded: .constant(false))
-                }
+            RenderEntry("window-iphone-hotspot") {
+                page { WindowDevicePage(device: .sampleNearbyIPhone, temperatureUnit: .celsius, now: now) }
             },
-            RenderEntry("window-devices") {
-                frame(.devices) {
-                    WindowDevicesContent(devices: DeviceBattery.samples, temperatureUnit: .celsius,
-                                         now: ChargeLog.sampleNow)
-                }
+            RenderEntry("window-ipad-untrusted") {
+                page { WindowDevicePage(device: .sampleIPadUntrusted, temperatureUnit: .celsius, now: now) }
             },
-            RenderEntry("window-devices-live-wifi") {
-                frame(.devices) {
-                    WindowDevicesContent(devices: [.sampleWiFiIPhone, .sampleAirPods], temperatureUnit: .celsius,
-                                         now: ChargeLog.sampleNow)
-                }
+            RenderEntry("window-accessory-airpods") {
+                page { WindowDevicePage(device: .sampleAirPods, temperatureUnit: .celsius, now: now) }
             },
-            RenderEntry("window-devices-remembered") {
-                frame(.devices) {
-                    // Wi-Fi sync dropped (phone asleep): the last exact reading wins over the
-                    // hotspot level, which is not shown.
-                    WindowDevicesContent(devices: HotspotParser.merge(connected: [], remembered: [.sampleRememberedIPhone],
-                                                                      nearby: [.sampleNearbyIPhone]) + [.sampleMouse],
-                                         temperatureUnit: .celsius, now: ChargeLog.sampleNow)
-                }
+            RenderEntry("window-accessory-keyboard") {
+                page { WindowDevicePage(device: .sampleKeyboard, temperatureUnit: .celsius, now: now) }
             },
-            RenderEntry("window-devices-empty") {
-                frame(.devices) {
-                    WindowDevicesContent(devices: [], temperatureUnit: .celsius, now: ChargeLog.sampleNow)
-                }
-            },
-            RenderEntry("window-devices-nearby-only") {
-                frame(.devices) {
-                    WindowDevicesContent(devices: [.sampleNearbyIPhone, .sampleAirPods], temperatureUnit: .celsius,
-                                         now: ChargeLog.sampleNow)
-                }
-            },
-            RenderEntry("window-insights-mac") {
-                frame(.insights) {
-                    InsightsContent(subjects: insightSubjects(mac: mac), selection: .constant(ChargeLog.thisMacID),
-                                    now: ChargeLog.sampleNow)
-                }
-            },
-            RenderEntry("window-insights-iphone") {
-                frame(.insights) {
-                    InsightsContent(subjects: insightSubjects(mac: mac),
-                                    selection: .constant(ChargeLog.sampleIPhoneWeek().id), now: ChargeLog.sampleNow)
-                }
-            },
-            RenderEntry("window-insights-iphone-no-exact") {
-                frame(.insights) {
-                    // Hotspot-only iPhone; its log from an older build holds only approximate samples.
-                    InsightsContent(subjects: InsightsSubject.all(mac: mac, snapshot: .sampleOnBattery,
-                                                                  devices: [.sampleNearbyIPhone],
-                                                                  logs: [.sampleMacWeek(), .sampleApproximateIPhoneWeek()],
-                                                                  unit: .celsius, now: ChargeLog.sampleNow),
-                                    selection: .constant(ChargeLog.sampleApproximateIPhoneWeek().id),
-                                    now: ChargeLog.sampleNow)
-                }
-            },
-            RenderEntry("window-insights-empty") {
-                frame(.insights) {
-                    InsightsContent(subjects: InsightsSubject.all(mac: mac, snapshot: .sampleOnBattery, devices: [],
-                                                                  logs: [], unit: .celsius),
-                                    selection: .constant(ChargeLog.thisMacID), now: ChargeLog.sampleNow)
-                }
-            },
-            RenderEntry("window-history") {
-                frame(.history) {
-                    HistoryContent(history: HistorySample.sampleSeries(endingAt: end),
-                                   deviceTitle: "This Mac (MacBook Pro)", onExport: {})
-                }
-            },
-            RenderEntry("window-history-empty") {
-                frame(.history) {
-                    HistoryContent(history: [], deviceTitle: "This Mac (MacBook Pro)")
-                }
-            },
-            RenderEntry("window-about") {
-                frame(.about) {
-                    AboutContent(info: aboutInfo, diagnostics: { "" })
-                }
-            },
-            RenderEntry("window-about-copied") {
-                frame(.about) {
-                    AboutContent(info: aboutInfo, diagnostics: { "" }, showsCopied: true)
-                }
-            },
-            RenderEntry("settings") {
-                SettingsView()
-                    .environment(BatteryModel(previewSnapshot: .sampleCharging, history: []))
-                    .background(Color(nsColor: .windowBackgroundColor))
-            },
-        ]
+        ] + SettingsRenderEntries.all(mac: mac)
     }
 
-    /// This Mac on battery at 12:07 plus an iPhone on Wi-Fi sync, each with a synthetic week.
-    private static func insightSubjects(mac: MacInfo) -> [InsightsSubject] {
-        InsightsSubject.all(mac: mac, snapshot: .sampleOnBattery, devices: [.sampleWiFiIPhone],
-                            logs: [.sampleMacWeek(), .sampleIPhoneWeek()], unit: .celsius, now: ChargeLog.sampleNow)
-    }
-
-    /// Tab bar + content at window width, without the ScrollView (which can't render headlessly).
+    /// The sidebar rows at sidebar width, on a slightly tinted ground like a source list.
     @MainActor
-    private static func frame<Content: View>(_ tab: WindowTab, @ViewBuilder _ content: () -> Content) -> some View {
+    private static func sidebar(_ sections: [WindowSidebarSection], selection: String,
+                                height: CGFloat? = 420) -> some View {
+        WindowSidebarRendering(sections: sections, selection: selection)
+            .frame(width: WindowLayout.sidebarWidth, height: height, alignment: .top)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .background(Color.primary.opacity(0.035))
+            .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    /// A detail page at its ideal width, without the ScrollView (which can't render headlessly).
+    @MainActor
+    private static func page<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         VStack(spacing: 0) {
-            WindowTabBar(selection: .constant(tab))
-            if !LiquidGlass.isSupported { WindowHairline() }
             content()
             Spacer(minLength: 0)
         }
-        .frame(width: WindowLayout.width)
+        .frame(width: WindowLayout.detailWidth)
         // Inside the entry so it resolves with the entry's colour scheme.
         .background(Color(nsColor: .windowBackgroundColor))
     }

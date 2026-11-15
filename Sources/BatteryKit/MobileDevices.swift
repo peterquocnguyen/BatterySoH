@@ -5,7 +5,7 @@ import Foundation
 ///
 /// Private-API use lives only in this file. Everything is looked up at runtime with
 /// `dlopen` / `dlsym`; if a symbol is missing the monitor is simply unavailable (`init` returns nil)
-/// and the Devices tab shows accessories only.
+/// and the window lists accessories only.
 ///
 /// Flow per attached device: connect → (if trusted) start session → read the
 /// `com.apple.mobile.battery` lockdown domain → start `com.apple.mobile.diagnostics_relay`

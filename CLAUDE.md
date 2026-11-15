@@ -1,6 +1,6 @@
 # Battery Buddy — agent guide
 
-Native macOS menu bar battery monitor. Spec: `docs/SPEC.md` (features F1–F11). Read it first.
+Native macOS menu bar battery monitor. Spec: `docs/SPEC.md` (features F1–F10). Read it first.
 
 ## Build / run / test
 
@@ -12,7 +12,7 @@ Native macOS menu bar battery monitor. Spec: `docs/SPEC.md` (features F1–F11).
 - `swift test` — Swift Testing (`import Testing`), not XCTest. `scripts/test.sh` does the
   same and also works when only Command Line Tools are selected.
 - `.build/debug/BatteryBuddy --render <dir>` — headless render of every `RenderEntry`
-  (popover states, window tabs) in light + dark to PNG, then exits. Use it to look at UI
+  (popover states, window sidebar, each window page, Settings › About) in light + dark to PNG, then exits. Use it to look at UI
   changes: render, then open the PNGs with the Read tool.
 - `scripts/bundle.sh` — release build wrapped into `build/Battery Buddy.app`. It re-stamps
   the binary's LC_BUILD_VERSION with the real SDK version (SwiftPM records 14.0); without it
@@ -31,11 +31,16 @@ Native macOS menu bar battery monitor. Spec: `docs/SPEC.md` (features F1–F11).
   `MobileDevices.swift`, private Sharing (Instant Hotspot) code only in `NearbyDevices.swift`
   (its levels are `isApproximate`); `LastExactReadingStore` (Devices.swift) keeps each
   iPhone / iPad's last exact reading for when it disconnects; `HotspotParser.merge` orders
-  connected > remembered > hotspot. Insights (F11, exact samples only): `ChargeLog`/`ChargeLogStore` (8-day
-  per-device charge samples) and pure `ChargeAnalysis` (used per day, averages, comparison
-  sentence) in `ChargeLog.swift`.
+  connected > remembered > hotspot.
 - `Sources/BatteryBuddy` — SwiftUI app. `BatteryModel` (@Observable, owns refresh policy),
-  `Views/Popover/*` (F1–F3), `Views/Window/*` (F4–F6, F10, F11 `InsightsView`), `RenderHarness`.
+  `Views/Popover/*` (F1–F3), `Views/Window/*`, `RenderHarness`. The window is device first:
+  `MainWindowView` (NavigationSplitView, selection in `window.selectedDevice`, `WindowSelection`
+  fallback rules), `WindowSidebar` (rows + `WindowSidebarRendering` for `--render`),
+  `WindowThisMacView` (`WindowMacPage` = F4 content + `WindowHistorySection` from
+  `HistoryView`), `WindowDevicePage` (iPhone / iPad / accessory page, F10). `SettingsView` is a
+  TabView: General (F6) + About (`AboutView`, F9). ImageRenderer can't draw List / ScrollView /
+  NavigationSplitView / TabView / Form, so pages and sidebar rows stay custom-drawn and only the
+  outer layer uses those containers.
 - `Sources/bbstat` — CLI.
 - `Tests/BatteryKitTests` — fixtures are real `AppleSmartBattery` dumps with serial scrubbed.
 

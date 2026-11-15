@@ -8,10 +8,9 @@ import Observation
 /// Refresh policy (spec "Stay tiny"):
 /// - IOPS notifications always update the snapshot (cheap, event-driven).
 /// - A fast timer runs only while a UI surface is visible (`visibleSurfaces > 0`).
-/// - A slow timer (5 min) keeps the menu bar title fresh, records one history sample per day
-///   and one charge-log reading for Insights (F11) — the same registry read, nothing extra.
+/// - A slow timer (5 min) keeps the menu bar title fresh and records one history sample per day.
 /// - Instant Hotspot browsing runs only while a surface is visible (restarted every minute in
-///   case the phone re-advertises). Its levels are never logged (Insights uses exact data only).
+///   case the phone re-advertises).
 @Observable
 @MainActor
 final class BatteryModel {
@@ -21,21 +20,17 @@ final class BatteryModel {
     /// Other devices: iPhone / iPad (exact connected reads, then the last exact reading of
     /// disconnected ones, then hotspot-only ones), then Bluetooth / USB accessories.
     var devices: [DeviceBattery] {
-        let exactLogNames = chargeLogs.filter { !$0.isThisMac }.map(\.name)
-        return HotspotParser.merge(connected: mobileDevices, remembered: rememberedDevices,
-                                   nearby: nearbyDevices, knownNames: exactLogNames) + accessories
+        HotspotParser.merge(connected: mobileDevices, remembered: rememberedDevices,
+                            nearby: nearbyDevices) + accessories
     }
     private(set) var accessories: [DeviceBattery] = []
     private(set) var mobileDevices: [DeviceBattery] = []
     /// Last exact reading per iPhone / iPad (persisted), shown while it isn't connected.
     private(set) var rememberedDevices: [DeviceBattery] = []
     private(set) var nearbyDevices: [DeviceBattery] = []
-    /// F11 charge logs (This Mac + iPhones / iPads), refreshed on every new sample.
-    private(set) var chargeLogs: [ChargeLog] = []
 
     private let reader = BatteryReader()
     private let store = HistoryStore()
-    @ObservationIgnored private var chargeStore: ChargeLogStore?
     @ObservationIgnored private var lastExactStore: LastExactReadingStore?
     @ObservationIgnored private var observer: PowerSources.Observer?
     @ObservationIgnored private var fastTimer: Timer?
@@ -84,11 +79,9 @@ final class BatteryModel {
     init(previewSnapshot: BatterySnapshot?, history: [HistorySample],
          energyStatus: EnergyModeStatus? = nil, chargeLimit: ChargeLimitStatus? = nil,
          chargeToFullRequested: Bool = false, controlError: String? = nil,
-         devices: [DeviceBattery] = [], chargeLogs: [ChargeLog] = [],
-         mac: MacInfo = .current()) {
+         devices: [DeviceBattery] = [], mac: MacInfo = .current()) {
         isStatic = true
         self.mac = mac
-        self.chargeLogs = chargeLogs
         snapshot = previewSnapshot
         self.history = history
         self.energyStatus = energyStatus
@@ -103,9 +96,7 @@ final class BatteryModel {
         isStatic = false
         mac = .current()
         history = store.samples
-        let charge = ChargeLogStore()
-        chargeStore = charge
-        chargeLogs = Self.sorted(charge.logs)
+        Self.removeRetiredDefaults()
         let lastExact = LastExactReadingStore()
         lastExactStore = lastExact
         rememberedDevices = lastExact.devices
@@ -118,18 +109,12 @@ final class BatteryModel {
             }
         }
         slowTimer = Timer.scheduledTimer(withTimeInterval: Self.sampleInterval, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.refresh()
-                self?.publishChargeLogs()
-            }
+            MainActor.assumeIsolated { self?.refresh() }
         }
         slowTimer?.tolerance = 60
         terminateObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.chargeStore?.flush()
-                try? self?.lastExactStore?.flush()
-            }
+            MainActor.assumeIsolated { try? self?.lastExactStore?.flush() }
         }
         lowPowerObserver = NotificationCenter.default.addObserver(
             forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main) { [weak self] _ in
@@ -149,7 +134,6 @@ final class BatteryModel {
         guard let s = reader.snapshot() else { return }
         if s != snapshot { snapshot = s }
         recordHistory(s)
-        recordCharge(s)
         expireChargeToFullRequest()
     }
 
@@ -162,8 +146,7 @@ final class BatteryModel {
             mobileMonitor = MobileDeviceMonitor { [weak self] list in
                 MainActor.assumeIsolated {
                     guard let self else { return }
-                    // Exact readings: logged on every read, even when the list is unchanged.
-                    self.logDevices(list)
+                    // Remembered on every read, even when the list is unchanged (fresh time).
                     self.rememberExact(list)
                     guard list != self.mobileDevices else { return }
                     self.mobileDevices = list
@@ -221,7 +204,7 @@ final class BatteryModel {
         nearbyGraceUntil = Date().addingTimeInterval(15)
     }
 
-    /// Display only: hotspot levels are not logged (Insights uses exact data only).
+    /// Display only: hotspot levels are never stored.
     private func applyNearby(_ list: [DeviceBattery]) {
         let now = Date()
         if list.isEmpty, !nearbyDevices.isEmpty, now < nearbyGraceUntil { return }
@@ -238,44 +221,6 @@ final class BatteryModel {
         if mobileDevices.contains(where: { !ids.contains($0.id) }) { try? lastExactStore.flush() }
         let remembered = lastExactStore.devices
         if remembered != rememberedDevices { rememberedDevices = remembered }
-    }
-
-    // MARK: Charge log (F11)
-
-    private func recordCharge(_ s: BatterySnapshot) {
-        let sample = ChargeSample(date: s.timestamp, percent: Double(s.chargePercent), isCharging: s.isCharging)
-        record(key: ChargeLog.thisMacID, name: mac.name, kind: nil, model: mac.identifier, sample: sample)
-    }
-
-    /// Exact iPhone / iPad readings only (`ChargeLog.exactSample` skips everything else).
-    private func logDevices(_ list: [DeviceBattery]) {
-        let now = Date()
-        for d in list {
-            guard let entry = ChargeLog.exactSample(for: d, at: now) else { continue }
-            record(key: entry.key, name: d.name, kind: d.kind, model: d.model, sample: entry.sample)
-        }
-    }
-
-    private func record(key: String, name: String, kind: DeviceBattery.Kind?, model: String?, sample: ChargeSample) {
-        guard let chargeStore,
-              (try? chargeStore.record(key: key, name: name, kind: kind, model: model, sample: sample)) == .appended
-        else { return }
-        publishChargeLogs()
-    }
-
-    /// Run extensions only change memory; the 5-minute tick and every append publish them.
-    private func publishChargeLogs() {
-        guard let chargeStore else { return }
-        let logs = Self.sorted(chargeStore.logs)
-        if logs != chargeLogs { chargeLogs = logs }
-    }
-
-    /// This Mac first, then by name.
-    private static func sorted(_ logs: [String: ChargeLog]) -> [ChargeLog] {
-        logs.values.sorted { a, b in
-            if a.isThisMac != b.isThisMac { return a.isThisMac }
-            return a.name.localizedStandardCompare(b.name) == .orderedAscending
-        }
     }
 
     func restartFastTimer() {
@@ -429,6 +374,14 @@ final class BatteryModel {
     }
 
     func exportCSV() -> String { HistoryAggregator.csv(history) }
+
+    /// Keys of the old tabbed window (tab, Insights device). Their charge-log files under
+    /// Application Support are left alone; nothing reads or writes them any more.
+    private static func removeRetiredDefaults() {
+        for key in ["window.selectedTab", "window.insights.device"] {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+    }
 
     private func recordHistory(_ s: BatterySnapshot) {
         guard let sample = HistorySample(snapshot: s) else { return }
