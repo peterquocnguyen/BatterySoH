@@ -7,6 +7,8 @@ import SwiftUI
 struct WindowDevicesContent: View {
     let devices: [DeviceBattery]
     let temperatureUnit: Fmt.TemperatureUnit
+    /// Opens Finder for the Wi-Fi sync setup (nearby-only iPhone / iPad).
+    var onOpenFinder: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -19,7 +21,8 @@ struct WindowDevicesContent: View {
                             .font(.headline)
                             .foregroundStyle(.secondary)
                         ForEach(section.devices) { device in
-                            WindowDeviceCard(device: device, temperatureUnit: temperatureUnit)
+                            WindowDeviceCard(device: device, temperatureUnit: temperatureUnit,
+                                             onOpenFinder: onOpenFinder)
                         }
                     }
                 }
@@ -41,6 +44,7 @@ struct WindowDevicesContent: View {
 private struct WindowDeviceCard: View {
     let device: DeviceBattery
     let temperatureUnit: Fmt.TemperatureUnit
+    let onOpenFinder: () -> Void
 
     var body: some View {
         WindowCard {
@@ -50,6 +54,11 @@ private struct WindowDeviceCard: View {
                     WindowHairline()
                     WindowRowList(rows: device.healthRows(unit: temperatureUnit))
                         .padding(.vertical, 2)
+                }
+                if device.needsWiFiSyncSetup {
+                    WindowHairline()
+                    WindowWiFiSyncSetup(kind: device.kind, onOpenFinder: onOpenFinder)
+                        .padding(14)
                 }
             }
         }
@@ -61,7 +70,7 @@ private struct WindowDeviceCard: View {
             header
             if device.parts.isEmpty {
                 if let percent = device.percent {
-                    WindowMeterBar(fraction: Double(percent) / 100, label: "\(percent)%",
+                    WindowMeterBar(fraction: Double(percent) / 100, label: device.percentLabel(percent),
                                    tint: device.chargeTint(percent))
                         .padding(.top, 10)
                 }
@@ -87,7 +96,7 @@ private struct WindowDeviceCard: View {
                 .padding(.top, 10)
             }
             if let note = device.note {
-                Label(note, systemImage: device.connection == .nearby ? "info.circle" : "lock.iphone")
+                Label(note, systemImage: device.isApproximate ? "clock.arrow.circlepath" : "lock.iphone")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .padding(.top, 10)
@@ -115,7 +124,21 @@ private struct WindowDeviceCard: View {
             }
             .textSelection(.enabled)
             Spacer(minLength: 8)
-            if let percent = device.percent {
+            if let percent = device.percent, device.isApproximate {
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(device.percentLabel(percent))
+                        .font(.title3.weight(.semibold))
+                        .monospacedDigit()
+                    if let since = device.levelSince {
+                        Text("since \(since.formatted(date: .omitted, time: .shortened))")
+                            .font(.caption)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("About \(percent) percent, last shared level")
+            } else if let percent = device.percent {
                 HStack(spacing: 3) {
                     if device.isCharging {
                         Image(systemName: "bolt.fill")
@@ -134,6 +157,34 @@ private struct WindowDeviceCard: View {
                     .foregroundStyle(.tertiary)
             }
         }
+    }
+}
+
+// MARK: - Wi-Fi sync setup (nearby-only iPhone / iPad)
+
+/// How to get exact values for a device seen only through Personal Hotspot.
+private struct WindowWiFiSyncSetup: View {
+    let kind: DeviceBattery.Kind
+    let onOpenFinder: () -> Void
+
+    private var device: String { kind == .iPad ? "iPad" : "iPhone" }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Get the live level", systemImage: "cable.connector")
+                .font(.subheadline.weight(.semibold))
+            Text("For the live level, charging state, health and cycles: connect the \(device) by cable once, unlock it and tap Trust, then in Finder select it and turn on “Show this \(device) when on Wi-Fi”. After that Battery Buddy reads it wirelessly whenever both are on the same Wi-Fi.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Open Finder", action: onOpenFinder)
+                .windowPillButton()
+                .help("Open Finder to turn on Wi-Fi sync for this \(device)")
+                .padding(.top, 2)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.accentColor.opacity(0.08)))
     }
 }
 
@@ -166,7 +217,7 @@ private struct WindowDevicesFootnote: View {
             footnote(symbol: "cable.connector",
                      text: "iPhone and iPad show up when connected by cable, or over Wi-Fi with “Show this iPhone when on Wi-Fi” on in Finder, and trusted. Health and cycles need that connection.")
             footnote(symbol: "personalhotspot",
-                     text: "Without a cable, an iPhone or cellular iPad on the same Apple Account shows its charge through Personal Hotspot, like the Wi-Fi menu does.")
+                     text: "Without a cable, an iPhone or cellular iPad on the same Apple Account shares a level through Personal Hotspot, like the Wi-Fi menu shows. It is approximate and can lag well behind the device.")
             footnote(symbol: "applewatch",
                      text: "Apple Watch doesn’t share its battery with a Mac. Check it on iPhone in the Batteries widget.")
         }
@@ -190,7 +241,7 @@ private struct WindowDevicesFootnote: View {
 extension DeviceBattery {
     var isMobileDevice: Bool { [.iPhone, .iPad, .iPod, .watch].contains(kind) }
 
-    fileprivate var hasHealth: Bool {
+    var hasHealth: Bool {
         designCapacityMAh != nil || cycleCount != nil || temperatureC != nil
     }
 
@@ -200,14 +251,24 @@ extension DeviceBattery {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
-    fileprivate func chargeTint(_ percent: Int) -> Color {
+    /// Seen only through Personal Hotspot: show how to turn on Wi-Fi sync.
+    fileprivate var needsWiFiSyncSetup: Bool { isApproximate && [.iPhone, .iPad].contains(kind) }
+
+    /// "75%", or "≈ 75%" for an advertised (approximate) level.
+    func percentLabel(_ percent: Int) -> String {
+        isApproximate ? "≈ \(percent)%" : "\(percent)%"
+    }
+
+    /// Neutral for approximate levels: no green "all good" (or charging) claim.
+    func chargeTint(_ percent: Int) -> Color {
+        if isApproximate { return .gray }
         if isCharging { return .green }
         if percent <= 10 { return .red }
         if percent <= 20 { return .orange }
         return .green
     }
 
-    fileprivate func healthRows(unit: Fmt.TemperatureUnit) -> [WindowRow] {
+    func healthRows(unit: Fmt.TemperatureUnit) -> [WindowRow] {
         [
             WindowRow(label: "Battery Health", value: Fmt.percent(healthPercent, decimals: 1)),
             WindowRow(label: "Full Charge Capacity", value: Fmt.mAh(fullChargeCapacityMAh)),
@@ -217,7 +278,7 @@ extension DeviceBattery {
         ]
     }
 
-    fileprivate var symbol: String {
+    var symbol: String {
         let lowerName = name.lowercased()
         let candidates: [String]
         switch kind {

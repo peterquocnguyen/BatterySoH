@@ -54,6 +54,14 @@ public struct DeviceBattery: Codable, Equatable, Sendable, Identifiable {
     /// Why some values are missing, e.g. "Unlock iPhone and tap Trust".
     public var note: String?
 
+    /// True when `percent` is a level the device advertised (Instant Hotspot), not a live read:
+    /// it can lag well behind the device, and there is no charging state. UIs show "≈ 75%",
+    /// a neutral bar and no charging claims.
+    public var isApproximate: Bool
+    /// When this app first saw the current approximate `percent` (so the UI can say
+    /// "since 12:03"). Set by the app, carried across updates by `HotspotParser.carryLevelSince`.
+    public var levelSince: Date?
+
     /// Full / design, percent with one decimal.
     public var healthPercent: Double? {
         guard let full = fullChargeCapacityMAh, let design = designCapacityMAh, design > 0, full > 0 else { return nil }
@@ -64,7 +72,8 @@ public struct DeviceBattery: Codable, Equatable, Sendable, Identifiable {
                 model: String? = nil, osVersion: String? = nil, percent: Int?,
                 isCharging: Bool = false, externalConnected: Bool = false, parts: [Part] = [],
                 fullChargeCapacityMAh: Int? = nil, designCapacityMAh: Int? = nil,
-                cycleCount: Int? = nil, temperatureC: Double? = nil, note: String? = nil) {
+                cycleCount: Int? = nil, temperatureC: Double? = nil, note: String? = nil,
+                isApproximate: Bool = false, levelSince: Date? = nil) {
         self.id = id
         self.name = name
         self.kind = kind
@@ -80,6 +89,8 @@ public struct DeviceBattery: Codable, Equatable, Sendable, Identifiable {
         self.cycleCount = cycleCount
         self.temperatureC = temperatureC
         self.note = note
+        self.isApproximate = isApproximate
+        self.levelSince = levelSince
     }
 }
 

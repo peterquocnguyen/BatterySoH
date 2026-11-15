@@ -14,13 +14,18 @@ Version 0.1.1 (build 2) · by Peter Quoc
 - **Battery summary**: precise charge, health (full-charge vs design capacity), cycles
   (`183 of 1000`), time to full or empty, and "charging on hold" when macOS is holding the
   charge (optimized charging / charge limit).
-- **This Mac window**: model, capacities in mAh, cycles, temperature, adapter, Low Power
+- **Mac window**: model, capacities in mAh, cycles, temperature, adapter, Low Power
   Mode, and battery gauge details.
 - **Devices**: batteries of an iPhone or iPad connected by cable or Wi-Fi sync (charge, and
   for trusted devices health, cycles and temperature), or nearby on the same Apple Account
-  through Personal Hotspot (charge only), plus AirPods (left / right / case),
+  through Personal Hotspot (an approximate level that can lag behind the phone, marked `≈`,
+  with a setup card for Wi-Fi sync), plus AirPods (left / right / case),
   Magic Mouse, Keyboard, Trackpad and other Bluetooth accessories. Apple Watch isn't
   available: watchOS shares its battery only with the paired iPhone.
+- **Insights**: like iPhone's Settings › Battery, for This Mac and your iPhone / iPad: current
+  level, a Daily Usage card ("You’re using less battery today than you usually do by 12:07"),
+  average vs today, a 7-day chart of battery used (all day and by this time of day), and health.
+  Built from a small 8-day charge log on disk. Per-app use for iPhone stays on the iPhone.
 - **History**: one sample per day, a monthly table (average health, max cycles), a health
   chart, and CSV export.
 - **About**: version, author, privacy note, data-source credits, and **Copy Diagnostics**,

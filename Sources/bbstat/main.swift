@@ -51,7 +51,7 @@ if args.contains("--devices") {
     if hotspot == nil { print("(Sharing.framework hotspot browser unavailable: nearby iPhone/iPad not scanned)") }
     if devices.isEmpty { print("No other devices found.") }
     for d in devices {
-        let charge = d.percent.map { "\($0)%" } ?? Fmt.dash
+        let charge = d.percent.map { d.isApproximate ? "≈\($0)% (hotspot, may lag)" : "\($0)%" } ?? Fmt.dash
         let state = d.isCharging ? " charging" : (d.externalConnected ? " on power" : "")
         let via = d.connection.map { " · \($0.rawValue)" } ?? ""
         print("\(d.name) [\(d.kind.rawValue)\(via)] \(charge)\(state)")

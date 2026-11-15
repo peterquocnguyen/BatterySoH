@@ -17,7 +17,8 @@ Manager, no third-party dependencies, no helper tools, no root.
 ## Non-goals (v1)
 
 - Apple Watch battery: watchOS shares it only with the paired iPhone; a Mac has no path to it.
-- History for other devices (F10 shows live values only).
+- Per-app battery use for iPhone / iPad (it never leaves the device; F11 says so).
+- Health history for other devices (F11 logs charge levels only).
 - Writing SMC keys or implementing our own charge limiter. The only controls are the
   ones macOS itself offers in its Battery menu (F8), driven through macOS's own interfaces.
 - Cloud sync, accounts, analytics.
@@ -35,7 +36,7 @@ Manager, no third-party dependencies, no helper tools, no root.
 | Battery temperature | `AppleSmartBattery.Temperature` (centi-°C) if present, else SMC keys `TB0T`/`TB1T`/`TB2T` via `AppleSMC` user client. **Never display 0 °C for "unknown" — show "—".** |
 | Accessory batteries (AirPods parts, Magic Mouse/Keyboard/Trackpad, controllers, BT HID) | `IOPSCopyPowerSourcesByType(4)` (IOKit export, private header; `dlsym`) — same list as `pmset -g accps` |
 | iPhone / iPad charge, charging | Private `MobileDevice.framework` (`dlopen`): `AMDeviceNotificationSubscribe…`, lockdown domain `com.apple.mobile.battery` |
-| iPhone / iPad charge without a cable | Private `Sharing.framework` (`dlopen`): `SFRemoteHotspotSession` browse, delegate `session:updatedFoundDevices:` → `SFRemoteHotspotDevice` `deviceName` (advert-truncated to ~12 UTF-8 bytes), `model`, `batteryLife`. Same Apple Account, Personal Hotspot capable. No charging state, no health |
+| iPhone / iPad charge without a cable | Private `Sharing.framework` (`dlopen`): `SFRemoteHotspotSession` browse, delegate `session:updatedFoundDevices:` → `SFRemoteHotspotDevice` `deviceName` (advert-truncated to ~12 UTF-8 bytes), `model`, `batteryLife`. Same Apple Account, Personal Hotspot capable. No charging state, no health. **Approximate**: the advertised level can lag the phone by hours (observed 75 % while the phone showed 91 % and charging) |
 | iPhone / iPad capacity, cycles, temperature | `com.apple.mobile.diagnostics_relay` `IORegistry` request for `IOPMPowerSource` (trusted devices only) |
 | Mac model name / identifier | IODeviceTree `product` `product-name`; `sysctl hw.model` |
 | Low Power Mode | `ProcessInfo.isLowPowerModeEnabled` |
@@ -134,10 +135,20 @@ Tab between "This Mac" and "History": batteries of other devices this Mac can se
   Capacity, Design Capacity, Charge Cycles, Temperature. Untrusted: name/model only plus
   "Unlock iPhone and tap Trust to see its battery." Never initiates pairing itself.
 - **Nearby** (no cable): iPhone / cellular iPad on the same Apple Account, through Instant
-  Hotspot — name (marked `…` when the advert cut it), model, charge %, note "Charge only.
-  Connect by cable for health and cycles." Dropped when the same device is also read by
-  cable (same model, cabled name starts with the advertised name). Browses only while a
-  surface is visible.
+  Hotspot — name (marked `…` when the advert cut it), model and the level the device last
+  advertised. That level is **approximate** (`DeviceBattery.isApproximate`): it can lag well
+  behind the phone and carries no charging state. The card shows `≈ 75%`, a neutral (grey)
+  bar, no bolt, "since 12:03" (when this app first saw the current value,
+  `DeviceBattery.levelSince`), and the caption "Last level the iPhone shared over Personal
+  Hotspot. It can lag well behind the phone."
+- **Setup card** on every nearby-only iPhone / iPad: "For the live level, charging state, health
+  and cycles: connect the iPhone by cable once, unlock it and tap Trust, then in Finder select
+  it and turn on ‘Show this iPhone when on Wi-Fi’. After that Battery Buddy reads it wirelessly
+  whenever both are on the same Wi-Fi." plus an **Open Finder** button.
+- Exact reads win: a nearby entry is dropped when the same device is also read by cable /
+  Wi-Fi sync (same model, cabled name starts with the advertised name). Browsing runs while a
+  surface is visible and is restarted (stop + start) every ~60 s in case the phone
+  re-advertises; an empty result within 15 s of a restart is ignored.
 - **Accessories** section: one card per accessory; AirPods-style groups show Left / Right /
   Case bars, headline percent = lowest bud.
 - Empty state when nothing is found; footnote explains the Wi-Fi/trust requirement and that
@@ -148,7 +159,43 @@ Tab between "This Mac" and "History": batteries of other devices this Mac can se
   `NearbyDevices.swift`; every symbol optional.
 
 **Accept:** a connected Bluetooth mouse shows the same percent as `pmset -g accps`; an
-iPhone on the same Apple Account shows the percent the Wi-Fi menu shows for its hotspot.
+iPhone on the same Apple Account shows the percent the Wi-Fi menu shows for its hotspot,
+marked approximate (`bbstat --devices`: `≈75% (hotspot, may lag)`).
+
+### F11 — Window: Insights
+Tab between "Devices" and "History", modelled on iOS Settings › Battery. (The tab titles are
+"Mac / Devices / Insights / History / About": with "This Mac" the five-segment toolbar
+control measures ~350 pt and doesn't fit the 420 pt window.)
+- **Charge log** (`ChargeLog` / `ChargeLogStore` in BatteryKit): per-device samples
+  `(date, percent, isCharging?, isApproximate)` in
+  `~/Library/Application Support/BatteryBuddy/charge-log/<sha256(key) prefix>.json`. Identical
+  consecutive readings extend one run (`date…until`) instead of adding samples; samples older
+  than 8 days are dropped. Appends are written atomically; run extensions only in memory, flushed
+  at most every 15 min and on quit. iPhone / iPad key = model + advertised name stem (first 12
+  UTF-8 bytes), so a phone's cabled and hotspot readings share one log.
+- **Sampling**: This Mac on every IOPS change, every UI tick while visible, and every 5 min in
+  the background (the slow timer's existing registry read; nothing extra). iPhone / iPad on
+  every exact (cabled / Wi-Fi) read, and on every hotspot result as approximate. Hotspot browsing
+  runs while a surface is visible, plus one 10 s browse every 30 min when idle — only once a
+  hotspot-only device has been logged, so Macs without one never browse in the background.
+- **Analysis** (`ChargeAnalysis`, pure, tested): battery **used** = sum of percentage drops
+  between consecutive readings; rises (charging) count zero; gaps over 2 h are unknown; a switch
+  between exact and approximate readings is unknown. Each drop is spread over its interval, so
+  it splits across midnight and the time-of-day cutoff. Per day: all-day use and use from
+  midnight to the current time of day ("by 12:07"). A day counts when it has ≥ 1 h of covered
+  time. Averages over the previous 7 days that count; with fewer than 3 such days (or no reading
+  today) the sentence is "Battery Buddy needs a few days of data to compare." Otherwise today vs
+  the average by now: less / about as much (within ±15 % of the average, at least ±1 point) /
+  more — "You’re using less battery today than you usually do by 12:07."
+- **UI**: device picker (This Mac + each iPhone / iPad with a log). Level card: big percent
+  (`≈` when approximate), state (Charging / On battery / Last shared level), time to full or
+  empty when known (Mac), bar to 100 %. Daily Usage card: the sentence, Average vs Today, a bar
+  chart of the previous 7 days + today (S M T W T F S Today) with "All Day" (light) stacked on
+  "Daily by 12:07" (dark) and a dashed Average line, legend; a note when usage comes from
+  approximate data ("usage is rough"). Battery Health card (Mac always; iPhone only with an
+  exact read). Footnote for iPhone / iPad: "Per-app battery use for iPhone stays on the iPhone:
+  Settings › Battery." Empty state: "Insights fill in as Battery Buddy runs. Keep it open in the
+  menu bar."
 
 ### F7 — `bbstat` CLI (dev + power-user tool)
 `swift run bbstat` prints the current snapshot as human text; `--json` prints JSON.
@@ -172,7 +219,8 @@ Rules:
   tested with fixtures; readers only fetch dictionaries.
 - Every optional hardware value is `Optional` in the model; views render `—` for `nil`.
 - UI polls only while popover/window is visible; background = IOPS notifications +
-  one history sample per day.
+  a 5-minute timer (one history sample per day, one charge-log reading) + the F11 idle
+  hotspot browse.
 
 ## Milestones
 1. M1 Core: BatteryKit models/parser/readers + bbstat + tests.

@@ -7,6 +7,12 @@ import ObjectiveC
 /// cellular plan that offers Personal Hotspot. Gives name (truncated by the Bluetooth
 /// advertisement), model and charge %; no charging state, no health.
 ///
+/// The charge is the level the device last put in its hotspot advertisement, not a live read.
+/// Observed on an iPhone 14 Plus: two fresh sessions minutes apart both reported 75 %
+/// (`cachedDevice = 0`, `lastSeen = 0`) while the phone showed 91 % and charging. Every result
+/// is therefore `isApproximate`; the app restarts browsing (`stop()` + `start()`) about once a
+/// minute while visible in case the device re-advertises.
+///
 /// Private-API use lives only in this file; everything is looked up at runtime, and if the
 /// classes are missing the browser is unavailable (`init` returns nil).
 ///
@@ -84,11 +90,49 @@ public enum HotspotParser {
         guard let id = BatteryParser.string(identifier) ?? model.map({ "\($0)-\(display)" }) else { return nil }
         return DeviceBattery(id: "hotspot-\(id)", name: display, kind: kind, connection: .nearby,
                              model: model, percent: percent,
-                             note: "Charge only. Connect by cable for health and cycles.")
+                             note: approximateNote(kind: kind), isApproximate: true)
     }
 
-    /// Cabled reads win: drop a nearby entry when a cabled device has the same model and a
-    /// name that starts with the advertised (truncated) name.
+    /// Caption for an approximate (advertised) level.
+    public static func approximateNote(kind: DeviceBattery.Kind) -> String {
+        let device = kind == .iPad ? "iPad" : (kind == .iPhone ? "iPhone" : "device")
+        return "Last level the \(device) shared over Personal Hotspot. It can lag well behind the \(device == "iPhone" ? "phone" : device)."
+    }
+
+    /// The part of a device name an Instant Hotspot advertisement carries: at most
+    /// `advertisedNameBytes` UTF-8 bytes, cut at a character boundary, without the "…" marker.
+    /// "Peter’s iPhone" and the advertised "Peter’s iP…" give the same stem, so a phone's
+    /// cabled and hotspot readings can share one charge log.
+    public static func advertisedStem(_ name: String) -> String {
+        let trimmed = name.hasSuffix("…") ? String(name.dropLast()) : name
+        var out = ""
+        var bytes = 0
+        for ch in trimmed {
+            let n = String(ch).utf8.count
+            if bytes + n > advertisedNameBytes { break }
+            out.append(ch)
+            bytes += n
+        }
+        return out
+    }
+
+    /// Keeps `levelSince` from the previous list while a device's advertised percent is
+    /// unchanged; stamps `now` when the device or its percent is new.
+    public static func carryLevelSince(previous: [DeviceBattery], current: [DeviceBattery], now: Date) -> [DeviceBattery] {
+        current.map { device in
+            var d = device
+            if let old = previous.first(where: { $0.id == d.id }), old.percent == d.percent, let since = old.levelSince {
+                d.levelSince = since
+            } else {
+                d.levelSince = d.percent == nil ? nil : now
+            }
+            return d
+        }
+    }
+
+    /// Cabled reads win (exact level, charging state, health): drop a nearby (approximate)
+    /// entry when a cabled device has the same model and a name that starts with the
+    /// advertised (truncated) name.
     public static func merge(cabled: [DeviceBattery], nearby: [DeviceBattery]) -> [DeviceBattery] {
         let extra = nearby.filter { n in
             let stem = n.name.hasSuffix("…") ? String(n.name.dropLast()) : n.name

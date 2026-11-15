@@ -4,13 +4,15 @@ import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// F4/F5/F9/F10 — the main window: a tab switcher over "This Mac", "Devices", "History" and "About".
+/// F4/F5/F9/F10/F11 — the main window: a tab switcher over "This Mac", "Devices", "Insights",
+/// "History" and "About".
 /// Tab contents are custom-drawn views; only this outer layer adds the ScrollView.
 struct MainWindowView: View {
     @Environment(BatteryModel.self) private var model
     @AppStorage(SettingsKey.temperatureUnit) private var temperatureUnit: Fmt.TemperatureUnit = .celsius
     @AppStorage(WindowStorageKey.selectedTab) private var tab: WindowTab = .thisMac
     @AppStorage(WindowStorageKey.detailsExpanded) private var detailsExpanded = false
+    @AppStorage(WindowStorageKey.insightsDevice) private var insightsDevice = ChargeLog.thisMacID
     @State private var lowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
     @State private var exportMessage: String?
 
@@ -65,7 +67,13 @@ struct MainWindowView: View {
                                      temperatureUnit: temperatureUnit, lowPowerMode: lowPowerMode,
                                      detailsExpanded: $detailsExpanded)
             case .devices:
-                WindowDevicesContent(devices: model.devices, temperatureUnit: temperatureUnit)
+                WindowDevicesContent(devices: model.devices, temperatureUnit: temperatureUnit,
+                                     onOpenFinder: Self.openFinder)
+            case .insights:
+                InsightsContent(subjects: InsightsSubject.all(mac: model.mac, snapshot: model.snapshot,
+                                                              devices: model.devices, logs: model.chargeLogs,
+                                                              unit: temperatureUnit),
+                                selection: $insightsDevice, now: Date())
             case .history:
                 HistoryContent(history: model.history, deviceTitle: "This Mac (\(model.mac.name))",
                                onExport: model.history.isEmpty ? nil : exportCSV,
@@ -78,6 +86,11 @@ struct MainWindowView: View {
             }
         }
         .scrollBounceBehavior(.basedOnSize)
+    }
+
+    /// Wi-Fi sync is turned on in Finder's sidebar device page.
+    static func openFinder() {
+        NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Library/CoreServices/Finder.app"))
     }
 
     private func exportCSV() {
@@ -112,17 +125,20 @@ enum WindowLayout {
 private enum WindowStorageKey {
     static let selectedTab = "window.selectedTab"
     static let detailsExpanded = "window.thisMac.detailsExpanded"
+    static let insightsDevice = "window.insights.device"
 }
 
 enum WindowTab: String, CaseIterable, Identifiable {
-    case thisMac, devices, history, about
+    case thisMac, devices, insights, history, about
 
     var id: String { rawValue }
 
+    /// Short enough that all five fit the 420 pt toolbar ("This Mac" pushed it to ~350 pt).
     var title: String {
         switch self {
-        case .thisMac: return "This Mac"
+        case .thisMac: return "Mac"
         case .devices: return "Devices"
+        case .insights: return "Insights"
         case .history: return "History"
         case .about: return "About"
         }
@@ -132,13 +148,14 @@ enum WindowTab: String, CaseIterable, Identifiable {
         switch self {
         case .thisMac: return "laptopcomputer"
         case .devices: return "ipad.and.iphone"
+        case .insights: return "chart.bar.xaxis"
         case .history: return "chart.xyaxis.line"
         case .about: return "info.circle"
         }
     }
 }
 
-/// This Mac / Devices / History / About switcher. macOS 26+: a compact glass capsule with segments (like a
+/// Mac / Devices / Insights / History / About switcher. macOS 26+: a compact glass capsule with segments (like a
 /// Tahoe segmented control). macOS 14–25: the toolbar-style icon-over-label tabs.
 /// Custom-drawn either way so `--render` can capture it.
 struct WindowTabBar: View {
@@ -196,14 +213,13 @@ private struct WindowSegmentButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 5) {
-                Image(systemName: tab.symbol)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-                Text(tab.title)
-                    .font(.system(size: 12.5, weight: isSelected ? .semibold : .medium))
-                    .foregroundStyle(isSelected ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
-            }
+            // Text only, like the native toolbar segmented control it stands in for: five
+            // icon + label segments don't fit 420 pt.
+            Text(tab.title)
+                .font(.system(size: 12.5, weight: isSelected ? .semibold : .medium))
+                .foregroundStyle(isSelected ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                .lineLimit(1)
+                .fixedSize()
             .padding(.horizontal, 14)
             .frame(height: 26)
             .background(selectionFill)
@@ -244,7 +260,7 @@ private struct WindowTabButton: View {
                     .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
             }
             .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-            .frame(width: 84, height: 50)
+            .frame(width: 74, height: 50)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color.primary.opacity(isSelected ? 0.07 : (hovering ? 0.04 : 0)))
@@ -315,6 +331,30 @@ enum WindowRenderEntries {
                     WindowDevicesContent(devices: [], temperatureUnit: .celsius)
                 }
             },
+            RenderEntry("window-devices-nearby-only") {
+                frame(.devices) {
+                    WindowDevicesContent(devices: [.sampleNearbyIPhone, .sampleAirPods], temperatureUnit: .celsius)
+                }
+            },
+            RenderEntry("window-insights-mac") {
+                frame(.insights) {
+                    InsightsContent(subjects: insightSubjects(mac: mac), selection: .constant(ChargeLog.thisMacID),
+                                    now: ChargeLog.sampleNow)
+                }
+            },
+            RenderEntry("window-insights-iphone") {
+                frame(.insights) {
+                    InsightsContent(subjects: insightSubjects(mac: mac),
+                                    selection: .constant(ChargeLog.sampleIPhoneWeek().id), now: ChargeLog.sampleNow)
+                }
+            },
+            RenderEntry("window-insights-empty") {
+                frame(.insights) {
+                    InsightsContent(subjects: InsightsSubject.all(mac: mac, snapshot: .sampleOnBattery, devices: [],
+                                                                  logs: [], unit: .celsius),
+                                    selection: .constant(ChargeLog.thisMacID), now: ChargeLog.sampleNow)
+                }
+            },
             RenderEntry("window-history") {
                 frame(.history) {
                     HistoryContent(history: HistorySample.sampleSeries(endingAt: end),
@@ -342,6 +382,12 @@ enum WindowRenderEntries {
                     .background(Color(nsColor: .windowBackgroundColor))
             },
         ]
+    }
+
+    /// This Mac on battery at 12:07 plus a hotspot-only iPhone, each with a synthetic week.
+    private static func insightSubjects(mac: MacInfo) -> [InsightsSubject] {
+        InsightsSubject.all(mac: mac, snapshot: .sampleOnBattery, devices: [.sampleNearbyIPhone],
+                            logs: [.sampleMacWeek(), .sampleIPhoneWeek()], unit: .celsius)
     }
 
     /// Tab bar + content at window width, without the ScrollView (which can't render headlessly).

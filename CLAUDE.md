@@ -1,6 +1,6 @@
 # Battery Buddy — agent guide
 
-Native macOS menu bar battery monitor. Spec: `docs/SPEC.md` (features F1–F7). Read it first.
+Native macOS menu bar battery monitor. Spec: `docs/SPEC.md` (features F1–F11). Read it first.
 
 ## Build / run / test
 
@@ -28,9 +28,12 @@ Native macOS menu bar battery monitor. Spec: `docs/SPEC.md` (features F1–F7). 
   `SMC` (temperature), `HistoryStore`/`HistoryAggregator`, `Fmt` formatting, `Samples`.
   Other devices (F10): `DeviceBattery` + pure `AccessoryParser`/`MobileBatteryParser` in
   `Devices.swift`, `AccessoryPowerSources` in `Readers.swift`, private MobileDevice code only in
-  `MobileDevices.swift`, private Sharing (Instant Hotspot) code only in `NearbyDevices.swift`.
+  `MobileDevices.swift`, private Sharing (Instant Hotspot) code only in `NearbyDevices.swift`
+  (its levels are `isApproximate`). Insights (F11): `ChargeLog`/`ChargeLogStore` (8-day
+  per-device charge samples) and pure `ChargeAnalysis` (used per day, averages, comparison
+  sentence) in `ChargeLog.swift`.
 - `Sources/BatteryBuddy` — SwiftUI app. `BatteryModel` (@Observable, owns refresh policy),
-  `Views/Popover/*` (F1–F3), `Views/Window/*` (F4–F6, F10), `RenderHarness`.
+  `Views/Popover/*` (F1–F3), `Views/Window/*` (F4–F6, F10, F11 `InsightsView`), `RenderHarness`.
 - `Sources/bbstat` — CLI.
 - `Tests/BatteryKitTests` — fixtures are real `AppleSmartBattery` dumps with serial scrubbed.
 
