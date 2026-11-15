@@ -39,6 +39,9 @@ Manager, no third-party dependencies, no helper tools, no root.
 | iPhone / iPad charge, charging | Private `MobileDevice.framework` (`dlopen`): `AMDeviceNotificationSubscribe…`, lockdown domain `com.apple.mobile.battery` |
 | iPhone / iPad charge without a cable | Private `Sharing.framework` (`dlopen`): `SFRemoteHotspotSession` browse, delegate `session:updatedFoundDevices:` → `SFRemoteHotspotDevice` `deviceName` (advert-truncated to ~12 UTF-8 bytes), `model`, `batteryLife`. Same Apple Account, Personal Hotspot capable. No charging state, no health. **Approximate**: the advertised level can lag the phone by hours (observed 75 % while the phone showed 91 % and charging) |
 | iPhone / iPad capacity, cycles, temperature | `com.apple.mobile.diagnostics_relay` `IORegistry` request for `IOPMPowerSource` (trusted devices only) |
+| Mac battery condition (Normal / Service Recommended), Apple's maximum capacity | `system_profiler SPPowerDataType -json` (`sppower_battery_health`, `sppower_battery_health_maximum_capacity`) — IOKit hides these from unentitled apps. Run in the background at launch and at most every 3 h |
+| Permanent battery failure | `AppleSmartBattery.PermanentFailureStatus` (non-zero = failure) |
+| iPhone / iPad maximum capacity, unexpected-shutdown record | diagnostics relay `IOPMPowerSource`: `NominalChargeCapacity` vs `DesignCapacity`; `BatteryShutdownReason` (`ShutDownTimestamp`, `ShutDownUpoReboot`, both 0 = none) |
 | Mac model name / identifier | IODeviceTree `product` `product-name`; `sysctl hw.model` |
 | Low Power Mode | `ProcessInfo.isLowPowerModeEnabled` |
 
@@ -116,8 +119,9 @@ Device first: every device appears once. A `NavigationSplitView` with
   date, health %, cycles, full-charge mAh, design mAh.
 - Stored as JSON at `~/Library/Application Support/BatterySoH/history.json`.
 - "History" section on the This Mac page, under Details: Battery Health card (sample count,
-  since, current health; Swift Charts line of health % over time), then a table grouped by month
-  (`2025-11`): average health, max cycles. Export CSV button next to the section title. Empty
+  since, current health; Swift Charts line of health % over time), then a "Monthly Averages"
+  disclosure, collapsed by default (state in `window.thisMac.historyTableExpanded`), that shows a
+  table grouped by month (`2025-11`): average health, max cycles. Export CSV button next to the section title. Empty
   state: "No history yet". Not shown on a Mac without a battery.
 
 ### F6 — Settings
@@ -203,6 +207,32 @@ iPhone on the same Apple Account shows the percent the Wi-Fi menu shows for its 
 marked approximate (`sohstat --devices`: `≈75% (hotspot, may lag)`). `sohstat --devices` adds
 `· updated just now` to exact iPhone / iPad lines and `· not connected (last exact reading)` to a
 remembered one (it reads the app's last-exact file, never writes it).
+
+### F11 — Battery condition (service and peak performance)
+When a battery needs service, for This Mac and every exactly-read iPhone / iPad
+(`BatteryCondition`).
+- **Status**: Normal / Service Recommended. Service when maximum capacity is below 80 % (Apple's
+  service level) or a permanent failure is reported.
+- **Maximum capacity** = `NominalChargeCapacity / DesignCapacity`, rounded down (falls back to
+  full-charge capacity) — what Settings shows (this Mac: 5,744 of 6,249 mAh → 91 %, same as
+  System Information).
+- **Mac**: macOS's own verdict when `system_profiler` gives one (`Good` → Normal, anything else
+  → Service Recommended; its maximum capacity is used as is). Caption "as macOS reports them".
+  Without it: estimated from capacity, captioned so.
+- **iPhone / iPad**: always an estimate — iOS doesn't share its Battery Health verdict with a
+  Mac. Caption says so and points to Settings › Battery › Battery Health.
+- **Peak performance** (iPhone only; Mac and iPad don't manage performance for battery wear):
+  Normal; May Be Limited after a recorded unexpected shutdown (`unexpectedShutdown`); May Be
+  Limited with a worn battery (`worn`, wins over the shutdown record).
+- **Rated cycles**: Mac from the gauge (`DesignCycleCount9C`); iPhone 15 and later 1000, earlier
+  iPhone 500, iPad 1000 (Apple's published figures). Device pages show "746 of 500".
+- UI: a "Battery Condition" card (status capsule, one-line summary with points above the
+  service level, rows Maximum Capacity / Service Level / Peak Performance, source caption) on the
+  This Mac page under the charge/health card and on iPhone / iPad pages under Battery Charge
+  (faded for a last-known reading; none for hotspot levels, untrusted devices, accessories).
+  Popover summary: a "Condition" row, orange when service is recommended.
+- `sohstat` prints `Condition` for the Mac and a `condition …, peak performance …, rated N
+  cycles` line per device; Copy Diagnostics adds `Condition`.
 
 ### F7 — `sohstat` CLI (dev + power-user tool)
 `swift run sohstat` prints the current snapshot as human text; `--json` prints JSON.

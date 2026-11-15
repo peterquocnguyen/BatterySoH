@@ -8,6 +8,8 @@ struct PopoverDisplay {
     var temperatureUnit: Fmt.TemperatureUnit = .celsius
     /// macOS charge limit (F8), when PowerUI could be read.
     var chargeLimit: ChargeLimitStatus?
+    /// F11 battery condition, when known.
+    var condition: BatteryCondition?
 
     var state: PowerState { snapshot.powerState }
 

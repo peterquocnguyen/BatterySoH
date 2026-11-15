@@ -29,6 +29,18 @@ final class BatteryModel {
     private(set) var rememberedDevices: [DeviceBattery] = []
     private(set) var nearbyDevices: [DeviceBattery] = []
 
+    /// macOS's own battery condition (System Information), read off the main thread at launch
+    /// and every few hours. nil until read, on a Mac without a battery, or when it fails.
+    private(set) var macReportedHealth: MacReportedHealth?
+    @ObservationIgnored private var macHealthReadAt = Date.distantPast
+    @ObservationIgnored private var macHealthInFlight = false
+    static let macHealthInterval: TimeInterval = 3 * 60 * 60
+
+    /// F11: This Mac's condition (macOS's verdict, else an estimate from capacity).
+    var macCondition: BatteryCondition? {
+        snapshot.flatMap { BatteryCondition.mac($0, reported: macReportedHealth) }
+    }
+
     private let reader = BatteryReader()
     private let store = HistoryStore()
     @ObservationIgnored private var lastExactStore: LastExactReadingStore?
@@ -79,8 +91,10 @@ final class BatteryModel {
     init(previewSnapshot: BatterySnapshot?, history: [HistorySample],
          energyStatus: EnergyModeStatus? = nil, chargeLimit: ChargeLimitStatus? = nil,
          chargeToFullRequested: Bool = false, controlError: String? = nil,
-         devices: [DeviceBattery] = [], mac: MacInfo = .current()) {
+         devices: [DeviceBattery] = [], mac: MacInfo = .current(),
+         macReportedHealth: MacReportedHealth? = nil) {
         isStatic = true
+        self.macReportedHealth = macReportedHealth
         self.mac = mac
         snapshot = previewSnapshot
         self.history = history
@@ -134,6 +148,7 @@ final class BatteryModel {
         guard let s = reader.snapshot() else { return }
         if s != snapshot { snapshot = s }
         recordHistory(s)
+        refreshMacHealthIfDue()
         expireChargeToFullRequest()
     }
 
@@ -380,6 +395,23 @@ final class BatteryModel {
     private static func removeRetiredDefaults() {
         for key in ["window.selectedTab", "window.insights.device"] {
             UserDefaults.standard.removeObject(forKey: key)
+        }
+    }
+
+    /// `system_profiler` takes about a second and the condition changes over months: run it in
+    /// the background, at most every `macHealthInterval`.
+    private func refreshMacHealthIfDue() {
+        guard !macHealthInFlight, Date().timeIntervalSince(macHealthReadAt) >= Self.macHealthInterval else { return }
+        macHealthInFlight = true
+        Task.detached(priority: .utility) {
+            let reported = MacReportedHealth.read()
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.macHealthInFlight = false
+                self.macHealthReadAt = Date()
+                // Keep the last good value when the tool hiccups.
+                if let reported, reported != self.macReportedHealth { self.macReportedHealth = reported }
+            }
         }
     }
 

@@ -143,7 +143,7 @@ struct SettingsAboutView: View {
     var body: some View {
         AboutContent(info: .current(mac: model.mac)) {
             AboutDiagnostics.report(info: .current(mac: model.mac), snapshot: model.snapshot,
-                                    lowPowerMode: model.isLowPowerMode)
+                                    lowPowerMode: model.isLowPowerMode, condition: model.macCondition)
         }
         .frame(width: SettingsLayout.width)
         .fixedSize(horizontal: false, vertical: true)

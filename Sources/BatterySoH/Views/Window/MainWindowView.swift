@@ -12,6 +12,7 @@ struct MainWindowView: View {
     /// `WindowSidebarItem.id` of the selected row; may name a device that isn't around right now.
     @AppStorage(WindowStorageKey.selection) private var storedSelection = WindowSidebarItem.thisMacID
     @AppStorage(WindowStorageKey.detailsExpanded) private var detailsExpanded = false
+    @AppStorage(WindowStorageKey.historyTableExpanded) private var historyTableExpanded = false
     @State private var exportMessage: String?
 
     var body: some View {
@@ -57,7 +58,8 @@ struct MainWindowView: View {
         } else {
             WindowMacPage(mac: model.mac, snapshot: model.snapshot, temperatureUnit: temperatureUnit,
                           lowPowerMode: model.isLowPowerMode, detailsExpanded: $detailsExpanded,
-                          history: model.history, onExport: exportCSV, exportMessage: exportMessage)
+                          history: model.history, condition: model.macCondition,
+                          historyTableExpanded: $historyTableExpanded, onExport: exportCSV, exportMessage: exportMessage)
         }
     }
 
@@ -106,6 +108,7 @@ enum WindowLayout {
 private enum WindowStorageKey {
     static let selection = "window.selectedDevice"
     static let detailsExpanded = "window.thisMac.detailsExpanded"
+    static let historyTableExpanded = "window.thisMac.historyTableExpanded"
 }
 
 /// Which sidebar row is selected, given what is stored and what is listed.
@@ -169,13 +172,21 @@ enum WindowRenderEntries {
             RenderEntry("window-mac-charging") {
                 page {
                     WindowMacPage(mac: mac, snapshot: .sampleCharging, temperatureUnit: .celsius, lowPowerMode: false,
-                                  detailsExpanded: .constant(true), history: history, onExport: {})
+                                  detailsExpanded: .constant(true), history: history,
+                                  condition: BatteryCondition.mac(.sampleCharging, reported: .sampleGood), onExport: {})
+                }
+            },
+            RenderEntry("window-mac-history-table") {
+                page {
+                    WindowHistorySection(history: history, tableExpanded: .constant(true), onExport: {})
+                        .padding(20)
                 }
             },
             RenderEntry("window-mac-onbattery-nohistory") {
                 page {
                     WindowMacPage(mac: mac, snapshot: onBattery, temperatureUnit: .fahrenheit, lowPowerMode: true,
-                                  detailsExpanded: .constant(false), history: [], onExport: {})
+                                  detailsExpanded: .constant(false), history: [],
+                                  condition: BatteryCondition.mac(.sampleWorn, reported: .sampleService), onExport: {})
                 }
             },
             RenderEntry("window-mac-nobattery") {
@@ -187,6 +198,9 @@ enum WindowRenderEntries {
             },
             RenderEntry("window-iphone-live") {
                 page { WindowDevicePage(device: .sampleIPhone, temperatureUnit: .celsius, now: now) }
+            },
+            RenderEntry("window-iphone-worn") {
+                page { WindowDevicePage(device: .sampleWornIPhone, temperatureUnit: .celsius, now: now) }
             },
             RenderEntry("window-iphone-remembered") {
                 page {

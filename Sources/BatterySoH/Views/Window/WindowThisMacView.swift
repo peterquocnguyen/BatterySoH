@@ -11,6 +11,10 @@ struct WindowMacPage: View {
     let lowPowerMode: Bool
     @Binding var detailsExpanded: Bool
     let history: [HistorySample]
+    /// F11: macOS's condition (or an estimate); nil hides the card.
+    var condition: BatteryCondition?
+    /// F5 monthly table shown (collapsed by default).
+    var historyTableExpanded: Binding<Bool> = .constant(false)
     /// nil hides the export button.
     var onExport: (() -> Void)?
     var exportMessage: String?
@@ -18,10 +22,11 @@ struct WindowMacPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             WindowThisMacContent(mac: mac, snapshot: snapshot, temperatureUnit: temperatureUnit,
-                                 lowPowerMode: lowPowerMode, detailsExpanded: $detailsExpanded)
+                                 lowPowerMode: lowPowerMode, detailsExpanded: $detailsExpanded,
+                                 condition: condition)
             // A Mac without a battery has no history to show.
             if snapshot != nil || !history.isEmpty {
-                WindowHistorySection(history: history, onExport: history.isEmpty ? nil : onExport,
+                WindowHistorySection(history: history, tableExpanded: historyTableExpanded, onExport: history.isEmpty ? nil : onExport,
                                      exportMessage: exportMessage)
                     .padding(.horizontal, 20)
                     .padding(.top, 8)
@@ -38,12 +43,16 @@ struct WindowThisMacContent: View {
     let temperatureUnit: Fmt.TemperatureUnit
     let lowPowerMode: Bool
     @Binding var detailsExpanded: Bool
+    var condition: BatteryCondition?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             WindowMacHeader(mac: mac)
             if let snapshot {
                 WindowBatteryLevels(snapshot: snapshot)
+                if let condition {
+                    WindowConditionCard(condition: condition, deviceName: "Mac")
+                }
                 WindowCard {
                     WindowRowList(rows: snapshot.windowMainRows(unit: temperatureUnit, lowPowerMode: lowPowerMode))
                 }

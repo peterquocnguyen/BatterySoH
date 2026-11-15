@@ -2,10 +2,12 @@ import BatteryKit
 import Charts
 import SwiftUI
 
-/// F5 — History section of the This Mac page: health chart, monthly table, CSV export.
-/// Pure drawing (Swift Charts renders headlessly).
+/// F5 — History section of the This Mac page: health chart, monthly table (collapsed until the
+/// user opens it), CSV export. Pure drawing (Swift Charts renders headlessly).
 struct WindowHistorySection: View {
     let history: [HistorySample]
+    /// The monthly table is shown; off by default.
+    var tableExpanded: Binding<Bool> = .constant(false)
     /// nil hides the export button (empty state).
     var onExport: (() -> Void)?
     var exportMessage: String?
@@ -41,8 +43,12 @@ struct WindowHistorySection: View {
                     }
                     .padding(14)
                 }
-                HistoryMonthTable(months: HistoryAggregator.monthly(samples).reversed())
-                    .padding(.top, 8)
+                HistoryMonthToggle(expanded: tableExpanded)
+                    .padding(.top, 4)
+                if tableExpanded.wrappedValue {
+                    HistoryMonthTable(months: HistoryAggregator.monthly(samples).reversed())
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
             if let exportMessage {
                 Text(exportMessage)
@@ -116,6 +122,31 @@ struct HistoryChart: View {
 }
 
 // MARK: - Monthly table
+
+/// "Monthly Averages" disclosure row, like the This Mac page's Details.
+private struct HistoryMonthToggle: View {
+    @Binding var expanded: Bool
+
+    var body: some View {
+        Button {
+            withAnimation(.snappy(duration: 0.2)) { expanded.toggle() }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .bold))
+                    .rotationEffect(.degrees(expanded ? 90 : 0))
+                    .frame(width: 12)
+                Text("Monthly Averages")
+                    .font(.headline)
+                Spacer()
+            }
+            .foregroundStyle(.secondary)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(expanded ? "Hide monthly averages" : "Show monthly averages")
+    }
+}
 
 struct HistoryMonthTable: View {
     /// Newest first.

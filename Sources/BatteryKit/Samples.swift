@@ -57,10 +57,23 @@ public extension BatterySnapshot {
         isCharging: false, externalConnected: false,
         systemLoadW: 7.4, serial: "SAMPLE", gaugeName: "bq40z651")
 
+    /// Worn: 4,812 of 6,249 mAh (77 %), 1,140 cycles.
+    static let sampleWorn = BatterySnapshot(
+        chargePercent: 67, rawChargePercent: 67.5, currentCapacityMAh: 3190,
+        fullChargeCapacityMAh: 4730, nominalChargeCapacityMAh: 4812, designCapacityMAh: 6249,
+        cycleCount: 1140, designCycleCount: 1000, voltageMV: 11900, amperageMA: -1000, temperatureC: 27.1,
+        isCharging: false, externalConnected: false, minutesToEmpty: 190,
+        systemLoadW: 12.1, serial: "SAMPLE", gaugeName: "bq40z651")
+
     static let allSamples: [(name: String, snapshot: BatterySnapshot)] = [
         ("charging", sampleCharging), ("on-battery", sampleOnBattery), ("on-hold", sampleOnHold),
         ("draining", sampleDraining), ("just-unplugged", sampleJustUnplugged),
     ]
+}
+
+public extension MacReportedHealth {
+    static let sampleGood = MacReportedHealth(health: "Good", maximumCapacityPercent: 96)
+    static let sampleService = MacReportedHealth(health: "Service Recommended", maximumCapacityPercent: 77)
 }
 
 public extension HistorySample {
@@ -90,7 +103,15 @@ public extension DeviceBattery {
         id: "sample-iphone", name: "Work iPhone", kind: .iPhone, connection: .usb,
         model: "iPhone18,1", osVersion: "iOS 26.1", percent: 64, isCharging: true, externalConnected: true,
         fullChargeCapacityMAh: 3712, designCapacityMAh: 4005, cycleCount: 212, temperatureC: 30.2,
-        updatedAt: sampleTime(12, 4))
+        updatedAt: sampleTime(12, 4), nominalChargeCapacityMAh: 3790, unexpectedShutdownRecorded: false)
+
+    /// An iPhone 14 Plus past its rated cycles, below the service level, with an unexpected
+    /// shutdown on record.
+    static let sampleWornIPhone = DeviceBattery(
+        id: "sample-worn-iphone", name: "Old iPhone", kind: .iPhone, connection: .wifi,
+        model: "iPhone14,8", osVersion: "iOS 27.2", percent: 81, fullChargeCapacityMAh: 3353,
+        designCapacityMAh: 4325, cycleCount: 746, temperatureC: 29.4, updatedAt: sampleTime(12, 6, 40),
+        nominalChargeCapacityMAh: 3213, unexpectedShutdownRecorded: true)
 
     /// Read over Wi-Fi sync seconds before `sampleNow`: "Updated just now".
     static let sampleWiFiIPhone = DeviceBattery(

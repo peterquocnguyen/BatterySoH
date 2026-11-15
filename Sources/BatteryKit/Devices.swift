@@ -47,9 +47,14 @@ public struct DeviceBattery: Codable, Equatable, Sendable, Identifiable {
 
     // Health — only iPhone / iPad over a trusted connection report these.
     public var fullChargeCapacityMAh: Int?
+    /// What iOS's "Maximum Capacity" is based on (`NominalChargeCapacity`).
+    public var nominalChargeCapacityMAh: Int?
     public var designCapacityMAh: Int?
     public var cycleCount: Int?
     public var temperatureC: Double?
+    /// The battery recorded an unexpected shutdown (`BatteryShutdownReason`): after one, iOS
+    /// may manage peak performance. nil when the device doesn't say.
+    public var unexpectedShutdownRecorded: Bool?
 
     /// Why some values are missing, e.g. "Unlock iPhone and tap Trust".
     public var note: String?
@@ -78,7 +83,8 @@ public struct DeviceBattery: Codable, Equatable, Sendable, Identifiable {
                 isCharging: Bool = false, externalConnected: Bool = false, parts: [Part] = [],
                 fullChargeCapacityMAh: Int? = nil, designCapacityMAh: Int? = nil,
                 cycleCount: Int? = nil, temperatureC: Double? = nil, note: String? = nil,
-                isApproximate: Bool = false, updatedAt: Date? = nil, isLastKnown: Bool = false) {
+                isApproximate: Bool = false, updatedAt: Date? = nil, isLastKnown: Bool = false,
+                nominalChargeCapacityMAh: Int? = nil, unexpectedShutdownRecorded: Bool? = nil) {
         self.id = id
         self.name = name
         self.kind = kind
@@ -97,6 +103,8 @@ public struct DeviceBattery: Codable, Equatable, Sendable, Identifiable {
         self.isApproximate = isApproximate
         self.updatedAt = updatedAt
         self.isLastKnown = isLastKnown
+        self.nominalChargeCapacityMAh = nominalChargeCapacityMAh
+        self.unexpectedShutdownRecorded = unexpectedShutdownRecorded
     }
 
     /// iPhone, iPad or iPod (the devices MobileDevice and Instant Hotspot report).
@@ -268,7 +276,19 @@ public enum MobileBatteryParser {
             fullChargeCapacityMAh: full, designCapacityMAh: design,
             cycleCount: BatteryParser.int(reg["CycleCount"]) ?? BatteryParser.int(batteryData["CycleCount"]),
             temperatureC: registry.flatMap(BatteryParser.temperature),
-            note: note, updatedAt: updatedAt)
+            note: note, updatedAt: updatedAt,
+            nominalChargeCapacityMAh: BatteryParser.positive(BatteryParser.int(reg["NominalChargeCapacity"])
+                ?? BatteryParser.int(batteryData["NominalChargeCapacity"])),
+            unexpectedShutdownRecorded: unexpectedShutdown(reg["BatteryShutdownReason"]))
+    }
+
+    /// `BatteryShutdownReason` = {ShutDownTimestamp, ShutDownUpoReboot}: both 0 when no
+    /// unexpected power-off (UPO) is on record. nil when the key is missing.
+    static func unexpectedShutdown(_ value: Any?) -> Bool? {
+        guard let d = value as? [String: Any], !d.isEmpty else { return nil }
+        let stamp = BatteryParser.int(d["ShutDownTimestamp"]) ?? 0
+        let upo = BatteryParser.int(d["ShutDownUpoReboot"]) ?? 0
+        return stamp > 0 || upo > 0
     }
 
     static func kind(deviceClass: String?, productType: String?) -> DeviceBattery.Kind {

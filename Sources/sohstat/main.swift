@@ -74,6 +74,12 @@ if args.contains("--devices") {
         if d.designCapacityMAh != nil || d.cycleCount != nil {
             print("    health \(Fmt.percent(d.healthPercent, decimals: 1)) (\(Fmt.mAh(d.fullChargeCapacityMAh)) of \(Fmt.mAh(d.designCapacityMAh))), cycles \(d.cycleCount.map(String.init) ?? Fmt.dash), \(Fmt.temperature(d.temperatureC))")
         }
+        if let c = BatteryCondition.device(d) {
+            var line = "    condition \(c.cliText)"
+            if let peak = c.peakPerformance { line += ", peak performance \(peak.cliText)" }
+            if let rated = BatteryCondition.ratedCycles(kind: d.kind, model: d.model) { line += ", rated \(rated) cycles" }
+            print(line)
+        }
         if let note = d.note { print("    \(note)") }
     }
     exit(0)
@@ -114,6 +120,7 @@ row("State", "\(s.statusTitle) — \(s.timeSummary)")
 row("Charge", "\(s.chargePercent)% (\(Fmt.percent(s.rawChargePercent, decimals: 1)) raw, \(Fmt.mAh(s.currentCapacityMAh)))")
 row("Health", "\(Fmt.percent(s.healthPercent, decimals: 1)) (\(Fmt.mAh(s.fullChargeCapacityMAh)) of \(Fmt.mAh(s.designCapacityMAh)))")
 row("Cycles", "\(s.cycleCount.map(String.init) ?? Fmt.dash)\(s.designCycleCount.map { " of \($0)" } ?? "")")
+row("Condition", BatteryCondition.mac(s, reported: MacReportedHealth.read())?.cliText ?? Fmt.dash)
 row("Battery", "\(Fmt.volts(mV: s.voltageMV)) · \(Fmt.amps(mA: s.amperageMA)) · \(Fmt.watts(s.batteryPowerW, signed: true))")
 row("Temperature", Fmt.temperature(s.temperatureC))
 row("Mac uses", Fmt.watts(s.macLoadW))
@@ -150,3 +157,25 @@ if let limit = ChargeLimit.shared.status() {
     row("Charge limit", "unavailable (PowerUI)")
 }
 row("Gauge / serial", "\(s.gaugeName ?? Fmt.dash) / \(s.serial ?? Fmt.dash)")
+
+
+extension BatteryCondition {
+    /// "Normal (macOS, max capacity 91%)", "Service Recommended (estimated, max capacity 74%)".
+    var cliText: String {
+        let state = needsService ? "Service Recommended" : "Normal"
+        var detail = [source == .macOS ? "macOS" : "estimated"]
+        if let m = maximumCapacityPercent { detail.append("max capacity \(m)%") }
+        if permanentFailure { detail.append("permanent failure") }
+        return "\(state) (\(detail.joined(separator: ", ")))"
+    }
+}
+
+extension BatteryCondition.PeakPerformance {
+    var cliText: String {
+        switch self {
+        case .normal: return "normal"
+        case .unexpectedShutdown: return "may be limited (unexpected shutdown recorded)"
+        case .worn: return "may be limited (worn battery)"
+        }
+    }
+}

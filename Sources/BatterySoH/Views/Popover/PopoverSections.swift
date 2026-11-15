@@ -146,6 +146,10 @@ struct PopoverSummary: View {
             barRow("Battery Health", value: Fmt.percent(snapshot.healthPercent, decimals: 1),
                    percent: snapshot.healthPercent, color: PopoverPalette.health(snapshot.healthPercent))
             VStack(spacing: 6) {
+                if let condition = display.condition {
+                    row("Condition", value: condition.status.title,
+                        color: condition.needsService ? condition.status.tint : nil)
+                }
                 row(time.label, value: time.value)
                 row("Cycles", value: display.cycles)
                 row("Temperature", value: display.temperature)
@@ -162,15 +166,15 @@ struct PopoverSummary: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func row(_ label: String, value: String) -> some View {
+    private func row(_ label: String, value: String, color: Color? = nil) -> some View {
         HStack {
             Text(label)
                 .font(.system(size: 13, weight: .medium))
             Spacer()
             Text(value)
-                .font(.system(size: 13))
+                .font(.system(size: 13, weight: color == nil ? .regular : .semibold))
                 .monospacedDigit()
-                .foregroundStyle(value == Fmt.dash ? .secondary : .primary)
+                .foregroundStyle(color.map { AnyShapeStyle($0) } ?? AnyShapeStyle(value == Fmt.dash ? .secondary : .primary))
         }
         .accessibilityElement(children: .combine)
     }
