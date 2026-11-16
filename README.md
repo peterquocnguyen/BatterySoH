@@ -7,7 +7,7 @@ service. It shows your iPhone, iPad, AirPods and other accessories too.
 Free, small, and private: no account, no ads, no internet connection.
 
 <p align="center">
-  <img src="docs/images/popover.png" width="340" alt="BatterySoH menu bar panel while charging: 47 W into the battery, charger, Mac and battery with live power flow, battery health and condition">
+  <img src="docs/images/popover.jpeg" width="900" alt="BatterySoH: the menu bar panel on the left shows charger power flow, battery health and Energy Mode; the window on the right shows a Work iPhone's charge, Normal battery condition, capacity and cycles, with This Mac, other iPhones, AirPods and Magic Mouse in the sidebar">
 </p>
 
 ## What it shows you
@@ -26,16 +26,6 @@ Free, small, and private: no account, no ads, no internet connection.
   a chart, so you can see the trend over months.
 - **The same controls as macOS.** Switch Energy Mode (Automatic, Low Power, High Power) and
   use "Charge to Full Now" when macOS is holding the charge at its limit.
-
-<p align="center">
-  <img src="docs/images/window-iphone.png" width="640" alt="BatterySoH window: a sidebar with This Mac, iPhones, AirPods and a mouse; the iPhone page shows its charge and a Normal battery condition">
-</p>
-
-<p align="center">
-  <img src="docs/images/window-mac.png" width="420" alt="This Mac page: charge and health bars, Battery Condition Normal at 96 % maximum capacity, cycles 75 of 1000">
-  &nbsp;
-  <img src="docs/images/service-recommended.png" width="420" alt="An older iPhone page: Battery Condition Service Recommended at 74 % maximum capacity, peak performance may be limited">
-</p>
 
 ## Install
 
