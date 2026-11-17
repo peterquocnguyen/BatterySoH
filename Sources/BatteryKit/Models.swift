@@ -71,6 +71,13 @@ public enum PowerState: String, Codable, Sendable {
 /// Everything BatterySoH knows about the battery at one moment.
 /// Every hardware value that might be missing is optional; UIs render `nil` as "—".
 public struct BatterySnapshot: Codable, Equatable, Sendable {
+    /// Equal apart from `timestamp` (each read gets a new one). nil `other` → false.
+    public func sameReading(as other: BatterySnapshot?) -> Bool {
+        guard var other else { return false }
+        other.timestamp = timestamp
+        return self == other
+    }
+
     public var timestamp: Date
 
     // Charge

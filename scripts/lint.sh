@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Formatting and repository rules, the same checks CI runs before building.
+# Formatting, repository rules and shellcheck: the same checks CI runs before building.
 #
 #   scripts/lint.sh          # check only (fails on any finding)
 #   scripts/lint.sh --fix    # rewrite files with swift format, then check
@@ -19,3 +19,9 @@ echo "==> swift format lint --strict"
 swift format lint --strict --recursive "${paths[@]}"
 echo "==> hygiene"
 python3 -I scripts/ci/hygiene.py
+echo "==> shellcheck"
+if command -v shellcheck >/dev/null; then
+    shellcheck --severity=warning scripts/*.sh scripts/ci/*.sh
+else
+    echo "shellcheck not installed (brew install shellcheck); CI runs it." >&2
+fi

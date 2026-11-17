@@ -22,7 +22,7 @@ Manager, no third-party dependencies, no helper tools, no root.
   history for other devices.
 - Writing SMC keys or implementing our own charge limiter. The only controls are the
   ones macOS itself offers in its Battery menu (F8), driven through macOS's own interfaces.
-- Cloud sync, accounts, analytics.
+- Cloud sync, accounts, analytics. Self-updating (the update check only links to the release).
 
 ## Data sources
 
@@ -147,9 +147,25 @@ Device first: every device appears once. A `NavigationSplitView` with
 - Private-API use is isolated in one file so it can be dropped if macOS changes it.
 
 ### F9 — About
-Settings › About tab: app icon, name, version (build), author **Peter Quoc**, copyright,
-one-line description, privacy statement (no network, no data collection), credits for
-data sources, "Copy Diagnostics" (sohstat-style text for bug reports).
+Settings › About tab: app icon, name, version (build), author **Peter Quoc**, website
+(`www.peterquoc.com`, opens in the browser), copyright, one-line description, the update card
+(F12), privacy statement (no data collection; the update check is the only network request),
+credits for data sources, "Copy Diagnostics" (sohstat-style text for bug reports).
+
+### F12 — Check for updates
+- One HTTPS GET to `api.github.com/repos/peterquocnguyen/BatterySoH/releases/latest`
+  (`UpdateChecker`): ephemeral session, no cookies, 15 s timeout, User-Agent `BatterySoH/<version>`
+  and nothing else about the user or the Mac. Drafts, pre-releases and tags that aren't
+  `MAJOR.MINOR.PATCH` are ignored, and only `github.com` page / download URLs are accepted. A 404
+  (repository moved or gone) is reported as a failed check, never as "up to date".
+- **Manual**: "Check Now" on Settings › About (card: up to date · checked 09:41 / Version 0.3.0
+  is available + View Release / Couldn't check + reason) and in Settings › General › Updates.
+- **Automatic** (opt-in, `updates.automatic`, off by default): at launch (+10 s) and from an
+  hourly timer, at most once per 24 h (`updates.lastCheck`, set only by a successful check).
+  A failed automatic check stays silent and retries on the next tick.
+- An available update shows an **Update** pill in the popover footer. Every update action opens
+  the GitHub release page; the app never downloads or installs anything itself.
+- `sohstat --check-update [--current 0.1.0]` runs the same check from the terminal.
 
 ### F10 — Window: other devices (one sidebar row and page each)
 Batteries of other devices this Mac can see.
@@ -237,7 +253,7 @@ When a battery needs service, for This Mac and every exactly-read iPhone / iPad
 ### F7 — `sohstat` CLI (dev + power-user tool)
 `swift run sohstat` prints the current snapshot as human text; `--json` prints JSON.
 `--devices` lists other devices (F10), `--devices --json` as JSON, `--devices --raw` dumps
-the accessory power source dictionaries (fixture capture).
+the accessory power source dictionaries (fixture capture). `--check-update` runs the F12 check.
 Used for debugging and as a fixture capture tool (`--raw` dumps the registry plist).
 
 ## Architecture
@@ -257,6 +273,10 @@ Rules:
 - Every optional hardware value is `Optional` in the model; views render `—` for `nil`.
 - UI polls only while popover/window is visible; background = IOPS notifications +
   a 5-minute timer (menu bar title, one history sample per day).
+- Robustness: system tools (`pmset`, `sudo -n`, `system_profiler`) run through `Subprocess`
+  with a deadline. A store file (`history.json`, `last-exact-readings.json`) that can't be read
+  or decoded is renamed `*.corrupt-<unix time>.json` instead of being overwritten; sohstat opens
+  the last-exact file read-only.
 
 ## Milestones
 1. M1 Core: BatteryKit models/parser/readers + sohstat + tests.

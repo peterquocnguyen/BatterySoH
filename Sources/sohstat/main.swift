@@ -8,11 +8,39 @@ import Foundation
 //   sohstat --devices          other devices: accessories + iPhone/iPad (add --json for JSON);
 //                             a disconnected iPhone/iPad shows the app's last exact reading
 //   sohstat --devices --raw    raw accessory power source descriptions as XML plist
+//   sohstat --check-update [--current 0.2.0]   ask GitHub for the latest release (F12)
 
 let args = Set(CommandLine.arguments.dropFirst())
 
 if args.contains("--help") || args.contains("-h") {
-    print("usage: sohstat [--json | --raw | --smc | --devices [--json | --raw] [--wait seconds]]")
+    print(
+        "usage: sohstat [--json | --raw | --smc | --devices [--json | --raw] [--wait seconds]"
+            + " | --check-update [--current version]]")
+    exit(0)
+}
+
+if args.contains("--check-update") {
+    let argv = CommandLine.arguments
+    let current = argv.firstIndex(of: "--current").flatMap { i in i + 1 < argv.count ? argv[i + 1] : nil } ?? "0.0.0"
+    let done = DispatchSemaphore(value: 0)
+    nonisolated(unsafe) var outcome = UpdateCheckOutcome.failed("No answer.")
+    // Detached: never needs the main thread, which waits below.
+    Task.detached {
+        outcome = await UpdateChecker.check(currentVersion: current)
+        done.signal()
+    }
+    if done.wait(timeout: .now() + 45) == .timedOut { outcome = .failed("No answer within 45 s.") }
+    switch outcome {
+    case .upToDate(let latest):
+        print("up to date (current \(current), latest \(latest.map(String.init(describing:)) ?? "none published"))")
+    case .available(let release):
+        print("update available: \(release.version) (current \(current))")
+        print("  page      \(release.pageURL.absoluteString)")
+        print("  download  \(release.downloadURL?.absoluteString ?? Fmt.dash)")
+    case .failed(let message):
+        print("check failed: \(message)")
+        exit(1)
+    }
     exit(0)
 }
 
@@ -47,7 +75,7 @@ if args.contains("--devices") {
     RunLoop.main.run(until: Date().addingTimeInterval(monitor == nil && hotspot == nil ? 0 : wait))
     hotspot?.stop()
     // The app's last exact reading per iPhone / iPad (read only; the app owns the file).
-    let remembered = LastExactReadingStore().devices
+    let remembered = LastExactReadingStore(readOnly: true).devices
     let devices =
         HotspotParser.merge(connected: mobile, remembered: remembered, nearby: nearby)
         + AccessoryPowerSources.read()

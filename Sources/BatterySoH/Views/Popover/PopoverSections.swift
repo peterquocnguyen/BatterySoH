@@ -190,6 +190,7 @@ struct PopoverSummary: View {
 
 struct PopoverFooter: View {
     @Environment(\.openWindow) private var openWindow
+    @Environment(UpdateModel.self) private var updates: UpdateModel?
 
     var body: some View {
         HStack(spacing: 6) {
@@ -202,6 +203,17 @@ struct PopoverFooter: View {
             .simultaneousGesture(TapGesture().onEnded { NSApp.activate() })
             .help("Settings")
             .accessibilityLabel("Settings")
+
+            if let updates, let release = updates.availableRelease {
+                Button(action: updates.openReleasePage) {
+                    Label("Update", systemImage: "arrow.down.circle.fill")
+                        .labelStyle(.titleAndIcon)
+                        .foregroundStyle(.tint)
+                }
+                .buttonStyle(PopoverFooterButtonStyle())
+                .help("BatterySoH \(release.version.description) is available. Open its release page.")
+                .accessibilityLabel("BatterySoH \(release.version.description) is available")
+            }
 
             Spacer()
 

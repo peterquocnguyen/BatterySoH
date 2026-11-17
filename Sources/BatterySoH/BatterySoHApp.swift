@@ -4,18 +4,21 @@ import SwiftUI
 @main
 struct BatterySoHApp: App {
     @State private var model: BatteryModel
+    @State private var updates: UpdateModel
 
     init() {
         RenderHarness.runIfRequested()
         // Before BatteryModel loads history / remembered readings from Application Support.
         LegacyMigration.run()
         _model = State(initialValue: BatteryModel())
+        _updates = State(initialValue: UpdateModel())
     }
 
     var body: some Scene {
         MenuBarExtra {
             PopoverView()
                 .environment(model)
+                .environment(updates)
         } label: {
             MenuBarLabel()
                 .environment(model)
@@ -35,6 +38,7 @@ struct BatterySoHApp: App {
         Settings {
             SettingsView()
                 .environment(model)
+                .environment(updates)
         }
     }
 }

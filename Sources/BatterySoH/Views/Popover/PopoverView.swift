@@ -247,6 +247,14 @@ enum PopoverRenderEntries {
                     .popoverRenderBackground()
             })
         entries.append(
+            RenderEntry("popover-update-available") {
+                PopoverView()
+                    .environment(model("charging", .sampleCharging))
+                    .environment(UpdateModel(previewState: .available(.sample)))
+                    .environment(\.popoverStaticFrame, true)
+                    .popoverRenderBackground()
+            })
+        entries.append(
             RenderEntry("popover-no-battery") {
                 PopoverView()
                     .environment(BatteryModel(previewSnapshot: nil, history: []))

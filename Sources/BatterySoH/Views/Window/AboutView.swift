@@ -9,6 +9,8 @@ struct AboutContent: View {
     let info: AboutInfo
     /// Builds the diagnostics text at click time, so it reflects the latest snapshot.
     let diagnostics: () -> String
+    /// F12; nil (no update section) when the environment has no update model.
+    @Environment(UpdateModel.self) private var updates: UpdateModel?
     @State private var copied: Bool
     @State private var copyCount = 0
 
@@ -23,13 +25,17 @@ struct AboutContent: View {
             AboutHeader(info: info)
             WindowCard {
                 VStack(spacing: 0) {
-                    WindowRowList(rows: [
-                        WindowRow(label: "Author", value: AboutInfo.author),
-                        WindowRow(label: "System", value: info.systemLine),
-                    ])
+                    WindowRowList(rows: [WindowRow(label: "Author", value: AboutInfo.author)])
+                    WindowHairline().padding(.leading, 12)
+                    AboutLinkRow(label: "Website", title: AboutInfo.websiteTitle, url: AboutInfo.websiteURL)
+                    WindowHairline().padding(.leading, 12)
+                    WindowRowList(rows: [WindowRow(label: "System", value: info.systemLine)])
                     WindowHairline()
                     diagnosticsFooter
                 }
+            }
+            if let updates {
+                AboutUpdateCard(model: updates)
             }
             AboutPrivacyCard()
             VStack(alignment: .leading, spacing: 4) {
@@ -141,6 +147,124 @@ private struct AboutAppIcon: View {
     }
 }
 
+/// A label/value row whose value opens a web page. A plain button rather than `Link`, which is
+/// AppKit-backed and draws as a placeholder under `--render`.
+private struct AboutLinkRow: View {
+    let label: String
+    let title: String
+    let url: URL
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(label)
+            Spacer(minLength: 8)
+            Button {
+                openURL(url)
+            } label: {
+                HStack(spacing: 3) {
+                    Text(title)
+                    Image(systemName: "arrow.up.right")
+                        .font(.caption.weight(.semibold))
+                        .accessibilityHidden(true)
+                }
+                .fontWeight(.medium)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.tint)
+            .help(url.absoluteString)
+            .accessibilityAddTraits(.isLink)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+}
+
+/// F12 — "Check for Updates": current state and the one action that fits it.
+struct AboutUpdateCard: View {
+    let model: UpdateModel
+
+    var body: some View {
+        WindowCard {
+            HStack(alignment: .center, spacing: 10) {
+                Image(systemName: symbol)
+                    .font(.system(size: 20, weight: .regular))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(tint)
+                    .frame(width: 24)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.headline)
+                    Text(detail)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                }
+                Spacer(minLength: 8)
+                if model.availableRelease != nil {
+                    Button("View Release", action: model.openReleasePage)
+                        .windowPillButton(prominent: true)
+                        .help("Open the release notes and download on GitHub")
+                } else {
+                    Button("Check Now", action: model.checkNow)
+                        .windowPillButton()
+                        .disabled(model.isChecking)
+                        .help("Ask GitHub for the latest version of BatterySoH")
+                }
+            }
+            .padding(12)
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var symbol: String {
+        switch model.state {
+        case .available: return "arrow.down.circle.fill"
+        case .failed: return "exclamationmark.triangle"
+        case .upToDate: return "checkmark.seal"
+        case .idle, .checking: return "arrow.triangle.2.circlepath"
+        }
+    }
+
+    private var tint: Color {
+        switch model.state {
+        case .available: return .accentColor
+        case .failed: return .orange
+        case .upToDate: return .green
+        case .idle, .checking: return .secondary
+        }
+    }
+
+    private var title: String {
+        switch model.state {
+        case .idle: return "Updates"
+        case .checking: return "Checking for updates…"
+        case .upToDate: return "BatterySoH is up to date"
+        case .available(let release): return "Version \(release.version) is available"
+        case .failed: return "Couldn't check for updates"
+        }
+    }
+
+    private var detail: String {
+        switch model.state {
+        case .idle:
+            return "You have version \(model.currentVersion)."
+        case .checking:
+            return "Asking GitHub for the latest release."
+        case .upToDate(let checkedAt):
+            return "Version \(model.currentVersion) · checked \(checkedAt.formatted(date: .omitted, time: .shortened))"
+        case .available(let release):
+            let date =
+                release.publishedAt.map { " · released \($0.formatted(date: .abbreviated, time: .omitted))" } ?? ""
+            return "You have \(model.currentVersion)\(date)."
+        case .failed(let message):
+            return message
+        }
+    }
+}
+
 private struct AboutPrivacyCard: View {
     var body: some View {
         WindowCard {
@@ -172,7 +296,8 @@ struct AboutInfo {
     static let appName = "BatterySoH"
     static let author = "Peter Quoc"
     static let tagline = "A lightweight battery and charger monitor for your Mac."
-    static let privacy = "BatterySoH works offline. It reads battery data from macOS and never sends anything anywhere."
+    static let privacy =
+        "BatterySoH reads battery data from macOS and never sends it anywhere. Its only network request is the update check, which asks GitHub for the latest version and sends nothing about you or your Mac."
     static let credits = "Data from IOKit (AppleSmartBattery), IOPowerSources and the SMC."
 
     // Fallbacks for unbundled runs (`swift run`, `--render`), where Bundle.main has no
@@ -181,12 +306,19 @@ struct AboutInfo {
     static let fallbackBuild = "3"
     static let fallbackCopyright = "© 2026 Peter Quoc"
 
-    // TODO(About links): website URL — not chosen yet. Add a link row to AboutContent once set.
-    static let websiteURL: URL? = nil
+    // A literal: cannot fail to parse.
+    static let websiteURL = URL(string: "https://www.peterquoc.com")!
+    static let websiteTitle = "www.peterquoc.com"
     // TODO(About links): support email (mailto:) — not chosen yet.
     static let supportEmail: String? = nil
     // TODO(About links): license URL / license text — license not chosen yet.
     static let licenseURL: URL? = nil
+
+    /// This build's version (CFBundleShortVersionString), for the update check.
+    static var bundleVersion: String {
+        let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        return v.flatMap { $0.isEmpty ? nil : $0 } ?? fallbackVersion
+    }
 
     var version: String
     var build: String

@@ -79,6 +79,8 @@ public enum HistoryAggregator {
 public final class HistoryStore {
     public let fileURL: URL
     public private(set) var samples: [HistorySample] = []
+    /// False when an unreadable file could not be set aside; saving would destroy it.
+    public private(set) var isWritable = true
     private let calendar: Calendar
 
     public static var defaultURL: URL {
@@ -92,12 +94,22 @@ public final class HistoryStore {
         load()
     }
 
+    /// A file that can't be read or decoded is renamed (`history.corrupt-….json`) rather than
+    /// overwritten by the next sample, so months of history are never lost to one bad byte.
     public func load() {
-        guard let data = try? Data(contentsOf: fileURL) else {
-            samples = []
+        samples = []
+        isWritable = true
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
+        guard let data = StoreFile.read(fileURL) else {
+            isWritable = !FileManager.default.fileExists(atPath: fileURL.path)
             return
         }
-        samples = (try? Self.decoder.decode([HistorySample].self, from: data)) ?? []
+        guard let decoded = try? Self.decoder.decode([HistorySample].self, from: data) else {
+            // Couldn't move it either: stop writing rather than overwrite it.
+            isWritable = StoreFile.setAside(fileURL) != nil
+            return
+        }
+        samples = decoded
     }
 
     /// Adds `sample` unless one already exists for that day; then the day's sample is replaced
@@ -116,6 +128,7 @@ public final class HistoryStore {
     }
 
     public func save() throws {
+        guard isWritable else { throw CocoaError(.fileWriteNoPermission) }
         try FileManager.default.createDirectory(
             at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Self.encoder.encode(samples).write(to: fileURL, options: .atomic)
@@ -133,4 +146,30 @@ public final class HistoryStore {
         d.dateDecodingStrategy = .iso8601
         return d
     }()
+}
+
+/// Shared file handling for the app's JSON stores.
+enum StoreFile {
+    /// The file's bytes; nil when it doesn't exist. A file that exists but can't be read is set
+    /// aside first (unless `readOnly`), so a later save can't replace data we never saw.
+    static func read(_ url: URL, readOnly: Bool = false) -> Data? {
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        if let data = try? Data(contentsOf: url) { return data }
+        if !readOnly { setAside(url) }
+        return nil
+    }
+
+    /// Renames `name.json` to `name.corrupt-<unix time>.json` next to it. Returns the new URL.
+    @discardableResult
+    static func setAside(_ url: URL, now: Date = Date()) -> URL? {
+        let stem = url.deletingPathExtension().lastPathComponent
+        let target = url.deletingLastPathComponent()
+            .appendingPathComponent("\(stem).corrupt-\(Int(now.timeIntervalSince1970)).\(url.pathExtension)")
+        do {
+            try FileManager.default.moveItem(at: url, to: target)
+            return target
+        } catch {
+            return nil
+        }
+    }
 }

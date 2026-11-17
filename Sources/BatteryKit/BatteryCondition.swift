@@ -69,7 +69,9 @@ public struct BatteryCondition: Codable, Equatable, Sendable {
         guard let design = designMAh, design > 0,
             let capacity = BatteryParser.positive(nominalMAh) ?? BatteryParser.positive(fullMAh)
         else { return nil }
-        return min(100, capacity * 100 / design)
+        // Garbage gauge values must not trap: clamp before the multiply can overflow.
+        guard capacity < design else { return 100 }
+        return capacity * 100 / design
     }
 
     /// Condition worked out from capacity alone (plus, for iPhone, the shutdown record).
@@ -203,25 +205,9 @@ public struct MacReportedHealth: Codable, Equatable, Sendable {
     /// Runs `/usr/sbin/system_profiler SPPowerDataType -json` (~1 s). Blocking: call off the
     /// main thread. nil when the tool fails, times out or reports no battery.
     public static func read(timeout: TimeInterval = 15) -> MacReportedHealth? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
-        process.arguments = ["SPPowerDataType", "-json"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        do { try process.run() } catch { return nil }
-        let done = DispatchSemaphore(value: 0)
-        nonisolated(unsafe) var data = Data()
-        DispatchQueue.global(qos: .utility).async {
-            data = pipe.fileHandleForReading.readDataToEndOfFile()
-            done.signal()
-        }
-        guard done.wait(timeout: .now() + timeout) == .success else {
-            process.terminate()
-            return nil
-        }
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
-        return parse(systemProfilerJSON: data)
+        guard let result = Subprocess.run("/usr/sbin/system_profiler", ["SPPowerDataType", "-json"], timeout: timeout),
+            result.succeeded
+        else { return nil }
+        return parse(systemProfilerJSON: result.output)
     }
 }
