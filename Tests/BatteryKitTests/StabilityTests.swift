@@ -4,7 +4,9 @@ import Testing
 @testable import BatteryKit
 
 /// Regression tests for failure modes that used to lose data, hang or trap.
-@Suite("Stability")
+// Serialized: the subprocess tests block their thread while a tool runs; keep at most one
+// at a time so a small CI runner never has every worker thread waiting.
+@Suite("Stability", .serialized)
 struct StabilityTests {
     private static func files(in dir: URL) throws -> [String] {
         try FileManager.default.contentsOfDirectory(atPath: dir.path).sorted()

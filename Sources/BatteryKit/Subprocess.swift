@@ -24,13 +24,19 @@ public enum Subprocess {
         do { try process.run() } catch { return nil }
 
         // Drain stdout on another thread: reading after `waitUntilExit` would deadlock once the
-        // pipe buffer fills, and reading here would block past the deadline.
+        // pipe buffer fills, and reading here would block past the deadline. A dedicated thread,
+        // not a global queue: callers block in Swift concurrency / GCD threads, and on a small
+        // machine a queued reader could wait behind them until the deadline (seen on CI).
         let done = DispatchSemaphore(value: 0)
         let box = OutputBox()
-        DispatchQueue.global(qos: .utility).async {
-            box.data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = pipe.fileHandleForReading
+        let reader = Thread {
+            box.data = output.readDataToEndOfFile()
             done.signal()
         }
+        reader.name = "Subprocess stdout"
+        reader.qualityOfService = .utility
+        reader.start()
         guard done.wait(timeout: .now() + timeout) == .success else {
             process.terminate()
             return nil
