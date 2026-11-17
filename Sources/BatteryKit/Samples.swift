@@ -162,3 +162,12 @@ extension DeviceBattery {
         sampleAirPods, sampleMouse, sampleKeyboard,
     ]
 }
+
+extension AppRelease {
+    /// A newer release for previews and `--render` (F12).
+    public static let sample = AppRelease(
+        version: AppVersion(major: 0, minor: 3), tag: "v0.3.0", name: "BatterySoH 0.3.0",
+        pageURL: UpdateChecker.releasesPage,
+        notes: "## New: update check",
+        publishedAt: Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 11, day: 20)))
+}

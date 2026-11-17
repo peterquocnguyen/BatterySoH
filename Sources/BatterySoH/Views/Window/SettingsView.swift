@@ -30,6 +30,8 @@ struct SettingsGeneralView: View {
     @AppStorage(SettingsKey.precisePercent) private var precisePercent = false
     @AppStorage(SettingsKey.refreshInterval) private var refreshInterval: Double = 2
     @AppStorage(SettingsKey.temperatureUnit) private var temperatureUnit: Fmt.TemperatureUnit = .celsius
+    @AppStorage(SettingsKey.updatesAutomatic) private var checkUpdatesAutomatically = false
+    @Environment(UpdateModel.self) private var updates: UpdateModel?
 
     @State private var launchAtLogin = false
     @State private var launchStatus: SMAppService.Status = .notRegistered
@@ -111,6 +113,38 @@ struct SettingsGeneralView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+
+            Section {
+                Toggle("Check for updates automatically", isOn: $checkUpdatesAutomatically)
+                    .onChange(of: checkUpdatesAutomatically) { _, on in
+                        if on { updates?.checkAutomaticallyIfDue() }
+                    }
+                if let updates {
+                    HStack {
+                        Text(SettingsUpdateStatus.text(updates.state, current: updates.currentVersion))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        if updates.availableRelease != nil {
+                            Button("View Release") { updates.openReleasePage() }
+                                .controlSize(.small)
+                        } else {
+                            Button("Check Now") { updates.checkNow() }
+                                .controlSize(.small)
+                                .disabled(updates.isChecking)
+                        }
+                    }
+                }
+            } header: {
+                Text("Updates")
+            } footer: {
+                Text(
+                    "Once a day BatterySoH asks GitHub for its latest release. Nothing about you or your Mac is sent, and nothing is downloaded or installed for you."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .formStyle(.grouped)
         .frame(width: SettingsLayout.width)
@@ -157,6 +191,20 @@ struct SettingsAboutView: View {
     }
 }
 
+/// One-line update status for the General tab.
+enum SettingsUpdateStatus {
+    @MainActor
+    static func text(_ state: UpdateModel.State, current: String) -> String {
+        switch state {
+        case .idle: return "Version \(current)"
+        case .checking: return "Checking…"
+        case .upToDate: return "Version \(current) is the latest."
+        case .available(let release): return "Version \(release.version) is available."
+        case .failed(let message): return message
+        }
+    }
+}
+
 enum SettingsRefreshOption: Double, CaseIterable, Identifiable {
     case one = 1
     case two = 2
@@ -176,9 +224,25 @@ enum SettingsRenderEntries {
             version: AboutInfo.fallbackVersion, build: AboutInfo.fallbackBuild,
             copyright: AboutInfo.fallbackCopyright, osVersion: "macOS 27.2 (27C61)",
             mac: mac, icon: AboutInfo.appIcon())
+        let sampleCheck =
+            Calendar(identifier: .gregorian)
+            .date(from: DateComponents(year: 2026, month: 11, day: 17, hour: 9, minute: 41)) ?? Date()
         return [
             RenderEntry("settings-about") {
                 AboutContent(info: info, diagnostics: { "" })
+                    .environment(UpdateModel(previewState: .upToDate(checkedAt: sampleCheck)))
+                    .frame(width: SettingsLayout.width)
+                    .background(Color(nsColor: .windowBackgroundColor))
+            },
+            RenderEntry("settings-about-update-available") {
+                AboutContent(info: info, diagnostics: { "" })
+                    .environment(UpdateModel(previewState: .available(.sample)))
+                    .frame(width: SettingsLayout.width)
+                    .background(Color(nsColor: .windowBackgroundColor))
+            },
+            RenderEntry("settings-about-update-failed") {
+                AboutContent(info: info, diagnostics: { "" })
+                    .environment(UpdateModel(previewState: .failed("This Mac is offline.")))
                     .frame(width: SettingsLayout.width)
                     .background(Color(nsColor: .windowBackgroundColor))
             },
@@ -191,6 +255,7 @@ enum SettingsRenderEntries {
                 // Form controls are AppKit-backed and may draw as placeholders here.
                 SettingsGeneralView()
                     .environment(BatteryModel(previewSnapshot: .sampleCharging, history: []))
+                    .environment(UpdateModel(previewState: .idle))
                     .background(Color(nsColor: .windowBackgroundColor))
             },
         ]

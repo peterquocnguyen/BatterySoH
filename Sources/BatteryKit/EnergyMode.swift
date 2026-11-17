@@ -195,18 +195,10 @@ public enum EnergyModeControl {
         throw EnergyModeError.failed(message ?? "Command failed (error \(number ?? 0)).")
     }
 
-    /// Runs a tool with fixed arguments (no shell) and returns stdout, or nil on failure.
-    static func run(_ arguments: [String], executable: String = pmsetPath) -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = arguments
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        do { try process.run() } catch { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
-        return String(decoding: data, as: UTF8.self)
+    /// Runs a tool with fixed arguments (no shell) and returns stdout, or nil on failure or
+    /// after `timeout` (a stalled `pmset` / `sudo` must not freeze the controls for good).
+    static func run(_ arguments: [String], executable: String = pmsetPath, timeout: TimeInterval = 10) -> String? {
+        guard let result = Subprocess.run(executable, arguments, timeout: timeout), result.succeeded else { return nil }
+        return result.text
     }
 }

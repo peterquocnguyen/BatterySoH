@@ -136,6 +136,7 @@ public enum AccessoryParser {
     public static func parse(_ sources: [[String: Any]]) -> [DeviceBattery] {
         var order: [String] = []
         var groups: [String: [[String: Any]]] = [:]
+        var anonymous = 0
         for source in sources {
             if BatteryParser.string(source["Type"]) == "InternalBattery" { continue }
             if BatteryParser.string(source["Transport Type"]) == "Internal" { continue }
@@ -145,11 +146,17 @@ public enum AccessoryParser {
                 ?? BatteryParser.string(source["Accessory Identifier"])
                 ?? BatteryParser.int(source["Power Source ID"]).map(String.init)
                 ?? BatteryParser.string(source["Name"])
-                ?? UUID().uuidString
+                ?? Self.anonymousKey(&anonymous)
             if groups[key] == nil { order.append(key) }
             groups[key, default: []].append(source)
         }
         return order.compactMap { key in device(id: key, sources: groups[key] ?? []) }
+    }
+
+    /// Same id on every read (a random one reset the window's selection on each refresh).
+    private static func anonymousKey(_ counter: inout Int) -> String {
+        defer { counter += 1 }
+        return "accessory-\(counter)"
     }
 
     static func device(id: String, sources: [[String: Any]]) -> DeviceBattery? {
@@ -188,7 +195,8 @@ public enum AccessoryParser {
         guard let current = BatteryParser.int(s["Current Capacity"]), current >= 0 else { return nil }
         let max = BatteryParser.int(s["Max Capacity"]) ?? 100
         guard max > 0 else { return nil }
-        return min(100, Int((Double(current) / Double(max) * 100).rounded()))
+        // Clamp in Double: Int(_:) traps on a huge ratio from a misbehaving accessory.
+        return Int(min(100, (Double(current) / Double(max) * 100).rounded()))
     }
 
     static func charging(_ s: [String: Any]) -> Bool {
@@ -357,8 +365,12 @@ public final class LastExactReadingStore {
             .appendingPathComponent("last-exact-readings.json")
     }
 
-    public init(fileURL: URL = LastExactReadingStore.defaultURL, now: Date = Date()) {
+    /// `readOnly`: never write the file (sohstat reads the app's file; the app owns it).
+    public let isReadOnly: Bool
+
+    public init(fileURL: URL = LastExactReadingStore.defaultURL, now: Date = Date(), readOnly: Bool = false) {
         self.fileURL = fileURL
+        isReadOnly = readOnly
         load(now: now)
     }
 
@@ -378,9 +390,11 @@ public final class LastExactReadingStore {
 
     public func load(now: Date = Date()) {
         readings = [:]
-        guard let data = try? Data(contentsOf: fileURL),
-            let file = try? Self.decoder.decode(File.self, from: data)
-        else { return }
+        guard let data = StoreFile.read(fileURL, readOnly: isReadOnly) else { return }
+        guard let file = try? Self.decoder.decode(File.self, from: data) else {
+            if !isReadOnly { StoreFile.setAside(fileURL) }
+            return
+        }
         for d in file.devices where d.isExactReading {
             if Self.isExpired(d, now: now) { dirty = true } else { readings[d.id] = d }
         }
@@ -400,7 +414,9 @@ public final class LastExactReadingStore {
             dirty = true
             if !Self.sameExceptTime(old, d) { changed = true }
         }
-        guard dirty, changed || now.timeIntervalSince(lastWrite) >= Self.writeInterval else { return false }
+        guard !isReadOnly, dirty, changed || now.timeIntervalSince(lastWrite) >= Self.writeInterval else {
+            return false
+        }
         try write(now: now)
         return true
     }
@@ -412,6 +428,7 @@ public final class LastExactReadingStore {
     }
 
     private func write(now: Date) throws {
+        guard !isReadOnly else { return }
         try FileManager.default.createDirectory(
             at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         readings = readings.filter { !Self.isExpired($0.value, now: now) }

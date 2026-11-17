@@ -8,7 +8,8 @@ Native macOS menu bar battery monitor. Spec: `docs/SPEC.md` (features F1–F10).
   in the macOS 27 SDK and CLT has no SwiftUIMacros plugin). BatteryKit, sohstat and the tests
   build with Command Line Tools alone via `scripts/test.sh`.
 - `swift build` — builds everything. `swift run sohstat` — prints live battery data
-  (`--json`, `--raw` registry dump, `--smc` temperature probe, `--devices` other devices).
+  (`--json`, `--raw` registry dump, `--smc` temperature probe, `--devices` other devices,
+  `--check-update` F12 against GitHub).
 - `swift test` — Swift Testing (`import Testing`), not XCTest. `scripts/test.sh` does the
   same and also works when only Command Line Tools are selected.
 - `.build/debug/BatterySoH --render <dir>` — headless render of every `RenderEntry`
@@ -51,8 +52,12 @@ Raise `.github/coverage-floor` when coverage goes up; never lower it to get a PR
   iPhone / iPad's last exact reading for when it disconnects; `HotspotParser.merge` orders
   connected > remembered > hotspot. `BatteryCondition` (F11): Normal / Service Recommended,
   maximum capacity, iPhone peak performance, rated cycles; `MacReportedHealth` runs
-  `system_profiler` for macOS's own verdict.
+  `system_profiler` for macOS's own verdict. `Updates.swift` (F12): pure `AppVersion` /
+  `UpdateChecker` (GitHub latest release, injectable transport). `Subprocess.swift`: every
+  system tool runs with a deadline. Store files that fail to load are set aside
+  (`StoreFile` in History.swift), never overwritten.
 - `Sources/BatterySoH` — SwiftUI app. `BatteryModel` (@Observable, owns refresh policy),
+  `UpdateModel` (F12 state; optional in the environment, so views without it skip the update UI),
   `Views/Popover/*` (F1–F3), `Views/Window/*`, `RenderHarness`. The window is device first:
   `MainWindowView` (NavigationSplitView, selection in `window.selectedDevice`, `WindowSelection`
   fallback rules), `WindowSidebar` (rows + `WindowSidebarRendering` for `--render`),
@@ -72,5 +77,7 @@ Raise `.github/coverage-floor` when coverage goes up; never lower it to get a PR
   for "unknown".
 - Light appearance is the primary design; dark must also look right (system setting).
 - No third-party dependencies. Target macOS 14+.
+- The only network request is the F12 update check. Never add another, and never send
+  anything about the user or the Mac with it.
 - UI polls only while visible (`model.surfaceAppeared()/surfaceDisappeared()`).
 - Never commit real battery serial numbers in fixtures.

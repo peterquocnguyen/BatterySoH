@@ -61,7 +61,10 @@ Apple Watch can't be shown: it shares its battery only with its paired iPhone.
 
 ## Privacy
 
-- BatterySoH makes **no network connections** and collects nothing.
+- BatterySoH collects nothing and sends no battery data anywhere. Its only network request is
+  the update check: it asks GitHub for the latest release, sending only "BatterySoH" and its
+  version. Automatic checks are off until you turn them on in **Settings › General › Updates**;
+  **Settings › About** also has a **Check Now** button.
 - It only **reads** battery information. Settings it changes are macOS's own (Energy Mode,
   "Charge to Full Now"), and macOS asks for your password where it normally would.
 - It keeps your battery history and the last reading of each iPhone / iPad on your Mac, in
@@ -73,6 +76,11 @@ Apple Watch can't be shown: it shares its battery only with its paired iPhone.
 Both compare the battery today with when it was new. Maximum Capacity is the number macOS and
 iOS show in Settings; Battery Health is the battery's own live measurement, so the two can
 differ by a few percent. Apple recommends service once Maximum Capacity drops below 80 %.
+
+**How do I update?**
+When a newer version is out, Settings › About says so, and with automatic checks on, an
+**Update** button appears at the bottom of the menu bar window. Either one opens the release
+page; download the new DMG and drag BatterySoH to Applications again.
 
 **How do I report a problem?**
 Open BatterySoH's Settings, go to **About** and click **Copy Diagnostics**, then paste the text
@@ -87,6 +95,8 @@ Xcode.
 swift build                      # build everything
 swift test                       # run the tests
 swift run sohstat                # battery details in the terminal (--devices, --json)
+swift run sohstat --check-update # ask GitHub for the latest release
+scripts/lint.sh                  # swift format, repository rules, shellcheck (as CI does)
 scripts/bundle.sh --dmg          # build/BatterySoH.app and build/BatterySoH-<version>.dmg
 ```
 
@@ -94,4 +104,4 @@ The product spec is in [docs/SPEC.md](docs/SPEC.md).
 
 ---
 
-By Peter Quoc · © 2026 Peter Quoc · Version 0.2.0
+By [Peter Quoc](https://www.peterquoc.com) · © 2026 Peter Quoc · Version 0.2.0

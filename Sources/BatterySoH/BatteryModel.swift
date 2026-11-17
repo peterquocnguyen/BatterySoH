@@ -151,7 +151,8 @@ final class BatteryModel {
             restartNearbyBrowsingIfDue()
         }
         guard let s = reader.snapshot() else { return }
-        if s != snapshot { snapshot = s }
+        // Every read has a new timestamp; only publish real changes so views don't redraw.
+        if !s.sameReading(as: snapshot) { snapshot = s }
         recordHistory(s)
         refreshMacHealthIfDue()
         expireChargeToFullRequest()
@@ -444,6 +445,10 @@ enum SettingsKey {
     static let precisePercent = "menuBar.precisePercent"
     static let refreshInterval = "refreshInterval"
     static let temperatureUnit = "temperatureUnit"
+    /// F12: check GitHub for a newer release once a day (opt-in; off by default).
+    static let updatesAutomatic = "updates.automatic"
+    /// Date of the last successful update check.
+    static let updatesLastCheck = "updates.lastCheck"
 }
 
 extension Double {
